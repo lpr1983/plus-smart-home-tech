@@ -12,7 +12,7 @@ public enum HubEventType {
         try {
             return HubEventType.valueOf(str);
         } catch (Exception e) {
-            throw new ValidationException(String.format("Неизвестный тип события: %s", str));
+            throw new ValidationException(String.format("Unknown event type: %s", str));
         }
     }
 }

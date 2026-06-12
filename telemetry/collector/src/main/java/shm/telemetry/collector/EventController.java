@@ -45,10 +45,7 @@ public class EventController {
     public void postSensorEvent(@RequestBody String jsonString) throws JsonProcessingException {
         JsonNode node = objectMapper.readTree(jsonString);
 
-        JsonNode typeNode = node.get("type");
-        if (typeNode == null) {
-            throw new ValidationException("Field \"type\" must be filled");
-        }
+        JsonNode typeNode = getTypeNodeOrThrow(node);
 
         SensorEventType type = SensorEventType.parse(typeNode.asText());
         BaseSensorEvent sensorEvent = switch (type) {
@@ -60,6 +57,8 @@ public class EventController {
         };
 
         validate(sensorEvent);
+
+        // Отправить в кафку
     }
 
     @PostMapping("/hubs")
@@ -67,10 +66,7 @@ public class EventController {
     public void postHubEvent(@RequestBody String jsonString) throws JsonProcessingException {
         JsonNode node = objectMapper.readTree(jsonString);
 
-        JsonNode typeNode = node.get("type");
-        if (typeNode == null) {
-            throw new ValidationException("Field \"type\" must be filled");
-        }
+        JsonNode typeNode = getTypeNodeOrThrow(node);
 
         HubEventType type = HubEventType.parse(typeNode.asText());
         BaseHubEvent hubEvent = switch (type) {
@@ -81,6 +77,17 @@ public class EventController {
         };
 
         validate(hubEvent);
+
+        // Отправить в кафку
+    }
+
+    private JsonNode getTypeNodeOrThrow(JsonNode node) {
+        JsonNode typeNode = node.get("type");
+        if (typeNode == null) {
+            throw new ValidationException("Field \"type\" must be filled");
+        }
+
+        return typeNode;
     }
 
     private <T> void validate(T object) {
