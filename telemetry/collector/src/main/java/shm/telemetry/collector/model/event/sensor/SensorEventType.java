@@ -1,20 +1,9 @@
 package shm.telemetry.collector.model.event.sensor;
 
-import shm.telemetry.collector.exception.ValidationException;
-
 public enum SensorEventType {
     MOTION_SENSOR_EVENT,
     TEMPERATURE_SENSOR_EVENT,
     LIGHT_SENSOR_EVENT,
     CLIMATE_SENSOR_EVENT,
     SWITCH_SENSOR_EVENT;
-
-    public static SensorEventType parse(String str) {
-        try {
-            return SensorEventType.valueOf(str);
-        } catch (Exception e) {
-            throw new ValidationException(String.format("Неизвестный тип события: %s", str));
-        }
-
-    }
 }
