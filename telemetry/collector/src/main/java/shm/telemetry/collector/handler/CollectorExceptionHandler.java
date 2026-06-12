@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import shm.telemetry.collector.exception.ValidationException;
 
 import java.time.Instant;
 import java.util.stream.Collectors;
@@ -49,6 +50,17 @@ public class CollectorExceptionHandler {
         errorResponse.setTimestamp(Instant.now());
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    }
+
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<ApiErrorDto> handleValidationException(ValidationException e) {
+        ApiErrorDto errorResponse = new ApiErrorDto();
+        errorResponse.setStatus(HttpStatus.BAD_REQUEST.name());
+        errorResponse.setReason("Incorrectly made request.");
+        errorResponse.setMessage(e.getMessage());
+        errorResponse.setTimestamp(Instant.now());
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
     }
 
     @ExceptionHandler(Exception.class)
