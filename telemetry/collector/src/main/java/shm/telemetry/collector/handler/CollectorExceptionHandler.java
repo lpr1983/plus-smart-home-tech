@@ -98,7 +98,7 @@ public class CollectorExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorDto> handleInternal(Exception e) {
         ApiErrorDto errorResponse = new ApiErrorDto();
-        errorResponse.setStatus(HttpStatus.BAD_REQUEST.name());
+        errorResponse.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.name());
         errorResponse.setReason("Internal unknown server error.");
         errorResponse.setMessage(e.getMessage());
         errorResponse.setTimestamp(Instant.now());
