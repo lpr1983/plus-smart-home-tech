@@ -1,4 +1,4 @@
-package shm.telemetry.collector.model.event.hub.device;
+package shm.telemetry.collector.model.hub.device;
 
 public enum DeviceType {
     MOTION_SENSOR,

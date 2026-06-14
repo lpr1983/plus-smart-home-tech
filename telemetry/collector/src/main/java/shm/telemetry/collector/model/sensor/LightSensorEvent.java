@@ -1,4 +1,4 @@
-package shm.telemetry.collector.model.event.sensor;
+package shm.telemetry.collector.model.sensor;
 
 public class LightSensorEvent extends BaseSensorEvent {
     private Integer linkQuality;

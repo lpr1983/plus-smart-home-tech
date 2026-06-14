@@ -1,22 +1,19 @@
-package shm.telemetry.collector.model.event.sensor;
+package shm.telemetry.collector.model.hub;
 
 import jakarta.validation.constraints.NotBlank;
 
 import java.time.Instant;
 
-public abstract class BaseSensorEvent {
+public abstract class BaseHubEvent {
 
     private String description;
-
-    @NotBlank
-    private String id;
 
     @NotBlank
     private String hubId;
 
     private Instant timestamp = Instant.now();
 
-    public abstract SensorEventType getType();
+    public abstract HubEventType getType();
 
     public String getDescription() {
         return description;
@@ -24,14 +21,6 @@ public abstract class BaseSensorEvent {
 
     public void setDescription(String description) {
         this.description = description;
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
     }
 
     public String getHubId() {

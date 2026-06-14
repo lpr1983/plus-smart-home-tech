@@ -1,9 +1,9 @@
-package shm.telemetry.collector.model.event.hub.scenario;
+package shm.telemetry.collector.model.hub.scenario;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import shm.telemetry.collector.model.event.hub.BaseHubEvent;
-import shm.telemetry.collector.model.event.hub.HubEventType;
+import shm.telemetry.collector.model.hub.BaseHubEvent;
+import shm.telemetry.collector.model.hub.HubEventType;
 
 public class ScenarioRemovedEvent extends BaseHubEvent {
     @NotBlank

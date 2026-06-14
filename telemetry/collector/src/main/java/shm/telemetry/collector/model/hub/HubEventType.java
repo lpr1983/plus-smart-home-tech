@@ -1,4 +1,4 @@
-package shm.telemetry.collector.model.event.hub;
+package shm.telemetry.collector.model.hub;
 
 import shm.telemetry.collector.exception.ValidationException;
 

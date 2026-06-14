@@ -13,20 +13,21 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import shm.telemetry.collector.exception.ValidationException;
-import shm.telemetry.collector.model.event.hub.BaseHubEvent;
-import shm.telemetry.collector.model.event.hub.HubEventType;
-import shm.telemetry.collector.model.event.hub.device.DeviceAddedEvent;
-import shm.telemetry.collector.model.event.hub.device.DeviceRemovedEvent;
-import shm.telemetry.collector.model.event.hub.scenario.ScenarioAddedEvent;
-import shm.telemetry.collector.model.event.hub.scenario.ScenarioRemovedEvent;
-import shm.telemetry.collector.model.event.sensor.BaseSensorEvent;
-import shm.telemetry.collector.model.event.sensor.ClimateSensorEvent;
-import shm.telemetry.collector.model.event.sensor.LightSensorEvent;
-import shm.telemetry.collector.model.event.sensor.MotionSensorEvent;
-import shm.telemetry.collector.model.event.sensor.SensorEventType;
-import shm.telemetry.collector.model.event.sensor.SwitchSensorEvent;
-import shm.telemetry.collector.model.event.sensor.TemperatureSensorEvent;
+import shm.telemetry.collector.model.hub.BaseHubEvent;
+import shm.telemetry.collector.model.hub.HubEventType;
+import shm.telemetry.collector.model.hub.device.DeviceAddedEvent;
+import shm.telemetry.collector.model.hub.device.DeviceRemovedEvent;
+import shm.telemetry.collector.model.hub.scenario.ScenarioAddedEvent;
+import shm.telemetry.collector.model.hub.scenario.ScenarioRemovedEvent;
+import shm.telemetry.collector.model.sensor.BaseSensorEvent;
+import shm.telemetry.collector.model.sensor.ClimateSensorEvent;
+import shm.telemetry.collector.model.sensor.LightSensorEvent;
+import shm.telemetry.collector.model.sensor.MotionSensorEvent;
+import shm.telemetry.collector.model.sensor.SensorEventType;
+import shm.telemetry.collector.model.sensor.SwitchSensorEvent;
+import shm.telemetry.collector.model.sensor.TemperatureSensorEvent;
 
+import java.time.Instant;
 import java.util.Set;
 
 @RestController
@@ -34,10 +35,12 @@ import java.util.Set;
 public class EventController {
     private final ObjectMapper objectMapper;
     private final Validator validator;
+    private final EventService eventService;
 
-    public EventController(ObjectMapper objectMapper, Validator validator) {
+    public EventController(ObjectMapper objectMapper, Validator validator, EventService eventService) {
         this.objectMapper = objectMapper;
         this.validator = validator;
+        this.eventService = eventService;
     }
 
     @PostMapping("/sensors")
@@ -56,9 +59,13 @@ public class EventController {
             case TEMPERATURE_SENSOR_EVENT -> objectMapper.treeToValue(node, TemperatureSensorEvent.class);
         };
 
+        if (sensorEvent.getTimestamp() == null) {
+            sensorEvent.setTimestamp(Instant.now());
+        }
+
         validate(sensorEvent);
 
-        // Отправить в кафку
+        eventService.sendSensorEvent(sensorEvent);
     }
 
     @PostMapping("/hubs")
@@ -76,9 +83,13 @@ public class EventController {
             case SCENARIO_REMOVED -> objectMapper.treeToValue(node, ScenarioRemovedEvent.class);
         };
 
+        if (hubEvent.getTimestamp() == null) {
+            hubEvent.setTimestamp(Instant.now());
+        }
+
         validate(hubEvent);
 
-        // Отправить в кафку
+        eventService.sendHubEvent(hubEvent);
     }
 
     private JsonNode getTypeNodeOrThrow(JsonNode node) {

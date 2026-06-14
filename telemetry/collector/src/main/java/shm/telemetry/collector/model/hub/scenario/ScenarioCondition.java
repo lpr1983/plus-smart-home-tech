@@ -1,9 +1,10 @@
-package shm.telemetry.collector.model.event.hub.scenario;
+package shm.telemetry.collector.model.hub.scenario;
 
-public class DeviceAction {
+public class ScenarioCondition {
     private String description;
     private String sensorId;
-    private DeviceActionType type;
+    private ConditionType type;
+    private ConditionOperation operation;
     private Integer value;
 
     public String getDescription() {
@@ -22,12 +23,20 @@ public class DeviceAction {
         this.sensorId = sensorId;
     }
 
-    public DeviceActionType getType() {
+    public ConditionType getType() {
         return type;
     }
 
-    public void setType(DeviceActionType type) {
+    public void setType(ConditionType type) {
         this.type = type;
+    }
+
+    public ConditionOperation getOperation() {
+        return operation;
+    }
+
+    public void setOperation(ConditionOperation operation) {
+        this.operation = operation;
     }
 
     public Integer getValue() {

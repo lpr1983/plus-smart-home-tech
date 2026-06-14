@@ -1,4 +1,4 @@
-package shm.telemetry.collector.model.event.sensor;
+package shm.telemetry.collector.model.sensor;
 
 import jakarta.validation.constraints.NotNull;
 

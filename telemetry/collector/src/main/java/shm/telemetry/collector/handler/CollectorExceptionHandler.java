@@ -1,5 +1,7 @@
 package shm.telemetry.collector.handler;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -52,6 +54,36 @@ public class CollectorExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
     }
 
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiErrorDto> handleConstraintViolationException(ConstraintViolationException e) {
+        ApiErrorDto errorResponse = new ApiErrorDto();
+        errorResponse.setStatus(HttpStatus.BAD_REQUEST.name());
+        errorResponse.setReason("Incorrectly made request.");
+
+        String message = e.getConstraintViolations().stream()
+                .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                .collect(Collectors.joining(";"));
+
+        errorResponse.setMessage(message);
+        errorResponse.setTimestamp(Instant.now());
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    }
+
+    @ExceptionHandler(JsonProcessingException.class)
+    public ResponseEntity<ApiErrorDto> handleJsonProcessingException(JsonProcessingException e) {
+        ApiErrorDto errorResponse = new ApiErrorDto();
+        errorResponse.setStatus(HttpStatus.BAD_REQUEST.name());
+        errorResponse.setReason("Incorrectly made request");
+
+        String message = String.format("JsonProcessingException. %s", e.getMessage());
+
+        errorResponse.setMessage(message);
+        errorResponse.setTimestamp(Instant.now());
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    }
+
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<ApiErrorDto> handleValidationException(ValidationException e) {
         ApiErrorDto errorResponse = new ApiErrorDto();
@@ -60,7 +92,7 @@ public class CollectorExceptionHandler {
         errorResponse.setMessage(e.getMessage());
         errorResponse.setTimestamp(Instant.now());
 
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
     }
 
     @ExceptionHandler(Exception.class)
