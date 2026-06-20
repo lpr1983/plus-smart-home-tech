@@ -6,6 +6,7 @@ public class ScenarioCondition {
     private ConditionType type;
     private ConditionOperation operation;
     private Integer value;
+    private Boolean boolValue;
 
     public String getDescription() {
         return description;
@@ -46,4 +47,13 @@ public class ScenarioCondition {
     public void setValue(Integer value) {
         this.value = value;
     }
+
+    public Boolean getBoolValue() {
+        return boolValue;
+    }
+
+    public void setBoolValue(Boolean boolValue) {
+        this.boolValue = boolValue;
+    }
+
 }
