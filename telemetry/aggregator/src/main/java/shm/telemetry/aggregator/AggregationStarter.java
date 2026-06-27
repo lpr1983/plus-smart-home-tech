@@ -47,12 +47,11 @@ public class AggregationStarter {
 
     public void work() {
         final List<String> consumerTopics = List.of(kafkaProperties.consumer().topic());
-        ;
+
         final String producerTopic = kafkaProperties.producer().topic();
-        ;
+
         final Duration pollTimeout = Duration.ofMillis(
                 kafkaProperties.consumer().consumeAttemptTimeoutMs());
-        ;
 
         try (
                 KafkaConsumer<Void, SensorEventAvro> consumer = createConsumer();
