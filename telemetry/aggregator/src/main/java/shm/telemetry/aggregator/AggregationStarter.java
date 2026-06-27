@@ -9,6 +9,7 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.VoidDeserializer;
 import org.apache.kafka.common.serialization.VoidSerializer;
@@ -23,6 +24,7 @@ import shm.telemetry.aggregator.serialization.SensorEventAvroDeserializer;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -30,6 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.Future;
 
 @Component
 public class AggregationStarter {
@@ -43,17 +46,20 @@ public class AggregationStarter {
     }
 
     public void work() {
-        final List<String> consumerTopics  = List.of(kafkaProperties.consumer().topic());;
-        final String producerTopic = kafkaProperties.producer().topic();;
+        final List<String> consumerTopics = List.of(kafkaProperties.consumer().topic());
+        ;
+        final String producerTopic = kafkaProperties.producer().topic();
+        ;
         final Duration pollTimeout = Duration.ofMillis(
-                kafkaProperties.consumer().consumeAttemptTimeoutMs());;
+                kafkaProperties.consumer().consumeAttemptTimeoutMs());
+        ;
 
         try (
                 KafkaConsumer<Void, SensorEventAvro> consumer = createConsumer();
                 Producer<Void, SpecificRecordBase> producer = createProducer();
         ) {
 
-            Runtime.getRuntime().addShutdownHook( new Thread(consumer::wakeup));
+            Runtime.getRuntime().addShutdownHook(new Thread(consumer::wakeup));
 
             consumer.subscribe(consumerTopics);
 
@@ -62,10 +68,15 @@ public class AggregationStarter {
 
                 List<SensorsSnapshotAvro> updatedSnapshots = processRecordsAndReturnUpdatedSnapshots(records);
 
+                List<Future<RecordMetadata>> results = new ArrayList<>();
+
                 for (SensorsSnapshotAvro snapshotAvro : updatedSnapshots) {
                     ProducerRecord<Void, SpecificRecordBase> record = new ProducerRecord<>(producerTopic, snapshotAvro);
+                    results.add(producer.send(record));
+                }
 
-                    producer.send(record).get();
+                for (Future<RecordMetadata> f : results) {
+                    f.get();
                 }
 
                 if (!records.isEmpty()) {
