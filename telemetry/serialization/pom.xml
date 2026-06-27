@@ -20,6 +20,7 @@
     <modules>
         <module>avro-schemas</module>
         <module>proto-schemas</module>
+        <module>avro-serialization</module>
     </modules>
 
 </project>
