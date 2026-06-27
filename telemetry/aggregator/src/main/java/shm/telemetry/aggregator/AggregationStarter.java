@@ -46,18 +46,14 @@ public class AggregationStarter {
     }
 
     public void work() {
-        final List<String> consumerTopics = List.of(kafkaProperties.consumer().topic());
-
-        final String producerTopic = kafkaProperties.producer().topic();
-
-        final Duration pollTimeout = Duration.ofMillis(
-                kafkaProperties.consumer().consumeAttemptTimeoutMs());
+        List<String> consumerTopics = List.of(kafkaProperties.consumer().topic());
+        String producerTopic = kafkaProperties.producer().topic();
+        Duration pollTimeout = Duration.ofMillis(kafkaProperties.consumer().consumeAttemptTimeoutMs());
 
         try (
                 KafkaConsumer<Void, SensorEventAvro> consumer = createConsumer();
                 Producer<Void, SpecificRecordBase> producer = createProducer();
         ) {
-
             Runtime.getRuntime().addShutdownHook(new Thread(consumer::wakeup));
 
             consumer.subscribe(consumerTopics);
