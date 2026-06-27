@@ -14,6 +14,7 @@ public class Aggregator {
         ConfigurableApplicationContext context = SpringApplication.run(Aggregator.class, args);
 
         AggregationStarter aggregator = context.getBean(AggregationStarter.class);
-        aggregator.start();
+
+        aggregator.work();
     }
 } 
