@@ -1,5 +1,6 @@
 package shm.telemetry.analyzer.processor;
 
+import org.apache.avro.specific.SpecificRecordBase;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -9,8 +10,13 @@ import org.apache.kafka.common.serialization.VoidDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import ru.yandex.practicum.kafka.telemetry.event.DeviceAddedEventAvro;
+import ru.yandex.practicum.kafka.telemetry.event.DeviceRemovedEventAvro;
 import ru.yandex.practicum.kafka.telemetry.event.HubEventAvro;
+import ru.yandex.practicum.kafka.telemetry.event.ScenarioAddedEventAvro;
+import shm.telemetry.analyzer.SensorRepository;
 import shm.telemetry.analyzer.kafka.KafkaProperties;
+import shm.telemetry.analyzer.model.Sensor;
 import shm.telemetry.analyzer.serialization.HubEventAvroDeserializer;
 
 import java.time.Duration;
@@ -21,9 +27,12 @@ import java.util.Properties;
 public class HubEventProcessor implements Runnable {
     private final Logger log = LoggerFactory.getLogger(SnapshotProcessor.class);
     private final KafkaProperties kafkaProperties;
+    private final SensorRepository sensorRepository;
 
-    public HubEventProcessor(KafkaProperties kafkaProperties) {
+    public HubEventProcessor(KafkaProperties kafkaProperties,
+                             SensorRepository sensorRepository) {
         this.kafkaProperties = kafkaProperties;
+        this.sensorRepository = sensorRepository;
     }
 
     @Override
@@ -44,7 +53,33 @@ public class HubEventProcessor implements Runnable {
                 }
 
                 for (ConsumerRecord<Void, HubEventAvro> record : records) {
-                    log.debug("polled HubEventAvro {}", record.value());
+                    HubEventAvro event = record.value();
+
+                    String hubId = event.getHubId();
+
+                    SpecificRecordBase payload = (SpecificRecordBase) event.getPayload();
+                    if (payload.getClass() == DeviceAddedEventAvro.class) {
+
+                        String sensorId = ((DeviceAddedEventAvro) payload).getId();
+                        Sensor sensor = new Sensor();
+                        sensor.setId(sensorId);
+                        sensor.setHubId(hubId);
+                        sensorRepository.save(sensor);
+
+                        log.info("created sensor id={}, hubId={}", sensorId, hubId);
+
+                    } else if (payload.getClass() == DeviceRemovedEventAvro.class) {
+
+                        String sensorId = ((DeviceRemovedEventAvro) payload).getId();
+                        sensorRepository.deleteByIdAndHubId(sensorId, hubId);
+
+                        log.info("delete sensor id={}, hubId={}", sensorId, hubId);
+                    } else if (payload.getClass() == ScenarioAddedEventAvro.class) {
+                        ScenarioAddedEventAvro scenarioAddedEventAvro = (ScenarioAddedEventAvro) payload;
+
+                    }
+
+                    log.debug("polled HubEventAvro value={}, payload type={}", event, event.getPayload().getClass().getName());
                 }
 
                 consumer.commitSync();
