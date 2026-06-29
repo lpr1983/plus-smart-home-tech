@@ -1,4 +1,4 @@
-package shm.telemetry.analyzer.processor;
+package shm.telemetry.analyzer.processor.hub_event;
 
 import org.apache.avro.specific.SpecificRecordBase;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -9,14 +9,12 @@ import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.VoidDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Component;
-import ru.yandex.practicum.kafka.telemetry.event.DeviceAddedEventAvro;
-import ru.yandex.practicum.kafka.telemetry.event.DeviceRemovedEventAvro;
 import ru.yandex.practicum.kafka.telemetry.event.HubEventAvro;
-import ru.yandex.practicum.kafka.telemetry.event.ScenarioAddedEventAvro;
-import shm.telemetry.analyzer.SensorRepository;
 import shm.telemetry.analyzer.kafka.KafkaProperties;
-import shm.telemetry.analyzer.model.Sensor;
+import shm.telemetry.analyzer.processor.hub_event.handler.HandlerRegistry;
+import shm.telemetry.analyzer.processor.hub_event.handler.HubEventHandler;
 import shm.telemetry.analyzer.serialization.HubEventAvroDeserializer;
 
 import java.time.Duration;
@@ -25,14 +23,13 @@ import java.util.Properties;
 
 @Component
 public class HubEventProcessor implements Runnable {
-    private final Logger log = LoggerFactory.getLogger(SnapshotProcessor.class);
+    private final Logger log = LoggerFactory.getLogger(HubEventProcessor.class);
     private final KafkaProperties kafkaProperties;
-    private final SensorRepository sensorRepository;
+    private final HandlerRegistry handlerRegistry;
 
-    public HubEventProcessor(KafkaProperties kafkaProperties,
-                             SensorRepository sensorRepository) {
+    public HubEventProcessor(KafkaProperties kafkaProperties, HandlerRegistry handlerRegistry) {
         this.kafkaProperties = kafkaProperties;
-        this.sensorRepository = sensorRepository;
+        this.handlerRegistry = handlerRegistry;
     }
 
     @Override
@@ -41,7 +38,8 @@ public class HubEventProcessor implements Runnable {
         Duration pollTimeout = Duration.ofMillis(kafkaProperties.consumer().pollTimeout());
 
         try (KafkaConsumer<Void, HubEventAvro> consumer = createConsumer()) {
-            Runtime.getRuntime().addShutdownHook(new Thread(consumer::wakeup));
+            Thread consumeShutdownHook = new Thread(consumer::wakeup);
+            Runtime.getRuntime().addShutdownHook(consumeShutdownHook);
 
             consumer.subscribe(consumerTopics);
 
@@ -55,28 +53,17 @@ public class HubEventProcessor implements Runnable {
                 for (ConsumerRecord<Void, HubEventAvro> record : records) {
                     HubEventAvro event = record.value();
 
-                    String hubId = event.getHubId();
-
                     SpecificRecordBase payload = (SpecificRecordBase) event.getPayload();
-                    if (payload.getClass() == DeviceAddedEventAvro.class) {
+                    HubEventHandler handler = handlerRegistry.getHandler(payload.getClass());
 
-                        String sensorId = ((DeviceAddedEventAvro) payload).getId();
-                        Sensor sensor = new Sensor();
-                        sensor.setId(sensorId);
-                        sensor.setHubId(hubId);
-                        sensorRepository.save(sensor);
+                    if (handler == null) {
+                        continue;
+                    }
 
-                        log.info("created sensor id={}, hubId={}", sensorId, hubId);
-
-                    } else if (payload.getClass() == DeviceRemovedEventAvro.class) {
-
-                        String sensorId = ((DeviceRemovedEventAvro) payload).getId();
-                        sensorRepository.deleteByIdAndHubId(sensorId, hubId);
-
-                        log.info("delete sensor id={}, hubId={}", sensorId, hubId);
-                    } else if (payload.getClass() == ScenarioAddedEventAvro.class) {
-                        ScenarioAddedEventAvro scenarioAddedEventAvro = (ScenarioAddedEventAvro) payload;
-
+                    try {
+                        handler.handle(event.getHubId(), payload);
+                    } catch (DataAccessException dae) {
+                        log.error("DataAccessException handler={}", handler.getClass(), dae);
                     }
 
                     log.debug("polled HubEventAvro value={}, payload type={}", event, event.getPayload().getClass().getName());
@@ -88,7 +75,6 @@ public class HubEventProcessor implements Runnable {
             log.info("Завершение работы HubEventProcessor");
         } catch (Exception e) {
             log.error("Ошибка в цикле обработки данных HubEventProcessor", e);
-            throw new RuntimeException("Critical error in HubEventProcessor", e);
         }
 
     }
@@ -105,5 +91,6 @@ public class HubEventProcessor implements Runnable {
 
         return new KafkaConsumer<>(properties);
     }
+
 
 }

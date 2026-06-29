@@ -9,14 +9,17 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "actions")
-public class Action {
+@Table(name = "conditions")
+public class Condition {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Enumerated(EnumType.STRING)
-    private ActionType type;
+    private ConditionType type;
+
+    @Enumerated(EnumType.STRING)
+    private ConditionOperation operation;
 
     private Integer value;
 
@@ -24,12 +27,20 @@ public class Action {
         return id;
     }
 
-    public ActionType getType() {
+    public ConditionType getType() {
         return type;
     }
 
-    public void setType(ActionType type) {
+    public void setType(ConditionType type) {
         this.type = type;
+    }
+
+    public ConditionOperation getOperation() {
+        return operation;
+    }
+
+    public void setOperation(ConditionOperation operation) {
+        this.operation = operation;
     }
 
     public Integer getValue() {

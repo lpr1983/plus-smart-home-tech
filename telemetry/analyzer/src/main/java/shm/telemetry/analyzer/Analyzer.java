@@ -4,7 +4,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.ConfigurableApplicationContext;
-import shm.telemetry.analyzer.processor.HubEventProcessor;
+import shm.telemetry.analyzer.processor.hub_event.HubEventProcessor;
 
 @SpringBootApplication
 @ConfigurationPropertiesScan
