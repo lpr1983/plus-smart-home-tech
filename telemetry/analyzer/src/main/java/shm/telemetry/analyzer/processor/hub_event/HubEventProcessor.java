@@ -37,44 +37,65 @@ public class HubEventProcessor implements Runnable {
         List<String> consumerTopics = List.of(kafkaProperties.consumer().hubEventProcessor().topic());
         Duration pollTimeout = Duration.ofMillis(kafkaProperties.consumer().pollTimeout());
 
-        try (KafkaConsumer<Void, HubEventAvro> consumer = createConsumer()) {
-            Thread consumeShutdownHook = new Thread(consumer::wakeup);
-            Runtime.getRuntime().addShutdownHook(consumeShutdownHook);
+        while (true) {
+            Thread shutdownHook = null;
 
-            consumer.subscribe(consumerTopics);
+            try (KafkaConsumer<Void, HubEventAvro> consumer = createConsumer()) {
+                shutdownHook = new Thread(consumer::wakeup);
+                Runtime.getRuntime().addShutdownHook(shutdownHook);
 
-            while (true) {
-                ConsumerRecords<Void, HubEventAvro> records = consumer.poll(pollTimeout);
+                consumer.subscribe(consumerTopics);
 
-                if (records.isEmpty()) {
-                    continue;
-                }
+                while (true) {
+                    ConsumerRecords<Void, HubEventAvro> records = consumer.poll(pollTimeout);
 
-                for (ConsumerRecord<Void, HubEventAvro> record : records) {
-                    HubEventAvro event = record.value();
-
-                    SpecificRecordBase payload = (SpecificRecordBase) event.getPayload();
-                    HubEventHandler handler = handlerRegistry.getHandler(payload.getClass());
-
-                    if (handler == null) {
+                    if (records.isEmpty()) {
                         continue;
                     }
 
-                    try {
-                        handler.handle(event.getHubId(), payload);
-                    } catch (DataAccessException dae) {
-                        log.error("DataAccessException handler={}", handler.getClass(), dae);
+                    for (ConsumerRecord<Void, HubEventAvro> record : records) {
+                        HubEventAvro event = record.value();
+
+                        SpecificRecordBase payload = (SpecificRecordBase) event.getPayload();
+                        HubEventHandler handler = handlerRegistry.getHandler(payload.getClass());
+
+                        if (handler == null) {
+                            continue;
+                        }
+
+                        try {
+                            handler.handle(event.getHubId(), payload);
+                        } catch (DataAccessException dae) {
+                            log.error("DataAccessException handler={}", handler.getClass(), dae);
+                        }
+
+                        log.debug("polled HubEventAvro value={}, payload type={}", event, event.getPayload().getClass().getName());
                     }
 
-                    log.debug("polled HubEventAvro value={}, payload type={}", event, event.getPayload().getClass().getName());
+                    consumer.commitSync();
                 }
-
-                consumer.commitSync();
+            } catch (WakeupException ignore) {
+                log.info("Завершение работы HubEventProcessor");
+                return;
+            } catch (Exception e) {
+                log.error("Ошибка в цикле обработки данных HubEventProcessor", e);
+                if (shutdownHook != null) {
+                    Runtime.getRuntime().removeShutdownHook(shutdownHook);
+                }
             }
-        } catch (WakeupException ignore) {
-            log.info("Завершение работы HubEventProcessor");
-        } catch (Exception e) {
-            log.error("Ошибка в цикле обработки данных HubEventProcessor", e);
+
+            Long retryPeriodMs = kafkaProperties.retryPeriodMs();
+            if (retryPeriodMs == null) {
+                return;
+            }
+            if (kafkaProperties.retryPeriodMs() != 0) {
+                try {
+                    Thread.sleep(retryPeriodMs);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
         }
 
     }

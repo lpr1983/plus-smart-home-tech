@@ -1,6 +1,5 @@
 package shm.telemetry.analyzer.processor.snapshot_event;
 
-import net.devh.boot.grpc.client.inject.GrpcClient;
 import org.apache.avro.specific.SpecificRecordBase;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -11,10 +10,6 @@ import org.apache.kafka.common.serialization.VoidDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import ru.yandex.practicum.grpc.telemetry.event.ActionTypeProto;
-import ru.yandex.practicum.grpc.telemetry.event.DeviceActionProto;
-import ru.yandex.practicum.grpc.telemetry.event.DeviceActionRequest;
-import ru.yandex.practicum.grpc.telemetry.hubrouter.HubRouterControllerGrpc;
 import ru.yandex.practicum.kafka.telemetry.event.ClimateSensorAvro;
 import ru.yandex.practicum.kafka.telemetry.event.LightSensorAvro;
 import ru.yandex.practicum.kafka.telemetry.event.MotionSensorAvro;
@@ -32,79 +27,79 @@ import shm.telemetry.analyzer.repository.ScenarioRepository;
 import shm.telemetry.analyzer.serialization.SensorsSnapshotAvroDeserializer;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
-import java.util.concurrent.TimeUnit;
 
 @Component
 public class SnapshotProcessor {
     private final Logger log = LoggerFactory.getLogger(SnapshotProcessor.class);
     private final KafkaProperties kafkaProperties;
     private final ScenarioRepository scenarioRepository;
-    private final HubRouterControllerGrpc.HubRouterControllerBlockingStub hubRouterClient;
+    private final HubRouterService hubRouterService;
 
     public SnapshotProcessor(KafkaProperties kafkaProperties, ScenarioRepository scenarioRepository,
-                             @GrpcClient("hub-router")
-                             HubRouterControllerGrpc.HubRouterControllerBlockingStub hubRouterClient) {
+                             HubRouterService hubRouterService) {
         this.kafkaProperties = kafkaProperties;
         this.scenarioRepository = scenarioRepository;
-        this.hubRouterClient = hubRouterClient;
+        this.hubRouterService = hubRouterService;
     }
 
     public void run() {
         List<String> consumerTopics = List.of(kafkaProperties.consumer().snapshotProcessor().topic());
         Duration pollTimeout = Duration.ofMillis(kafkaProperties.consumer().pollTimeout());
 
-        try (KafkaConsumer<Void, SensorsSnapshotAvro> consumer = createConsumer()) {
-            Runtime.getRuntime().addShutdownHook(new Thread(consumer::wakeup));
+        while (true) {
+            Thread shutdownHook = null;
 
-            consumer.subscribe(consumerTopics);
+            try (KafkaConsumer<Void, SensorsSnapshotAvro> consumer = createConsumer()) {
+                shutdownHook = new Thread(consumer::wakeup);
+                Runtime.getRuntime().addShutdownHook(shutdownHook);
 
-            while (true) {
-                ConsumerRecords<Void, SensorsSnapshotAvro> records = consumer.poll(pollTimeout);
+                consumer.subscribe(consumerTopics);
 
-                consumer.commitSync();
+                while (true) {
+                    ConsumerRecords<Void, SensorsSnapshotAvro> records = consumer.poll(pollTimeout);
 
-                if (records.isEmpty()) {
-                    continue;
+                    if (records.isEmpty()) {
+                        continue;
+                    }
+
+                    for (ConsumerRecord<Void, SensorsSnapshotAvro> record : records) {
+                        processSnapshot(record.value());
+                        log.debug("polled SensorsSnapshotAvro {}", record.value());
+                    }
+
+                    consumer.commitSync();
                 }
-
-                for (ConsumerRecord<Void, SensorsSnapshotAvro> record : records) {
-                    processRecord(record);
-                    log.debug("polled SensorsSnapshotAvro {}", record.value());
+            } catch (WakeupException ignore) {
+                log.info("Завершение работы SnapshotProcessor");
+                return;
+            } catch (Exception e) {
+                log.error("Ошибка в цикле обработки данных SnapshotProcessor", e);
+                if (shutdownHook != null) {
+                    Runtime.getRuntime().removeShutdownHook(shutdownHook);
                 }
-
-                //consumer.commitSync();
             }
-        } catch (WakeupException ignore) {
-            log.info("Завершение работы SnapshotProcessor");
-        } catch (Exception e) {
-            log.error("Ошибка в цикле обработки данных SnapshotProcessor", e);
+
+            Long retryPeriodMs = kafkaProperties.retryPeriodMs();
+            if (retryPeriodMs == null) {
+                break;
+            }
+            if (kafkaProperties.retryPeriodMs() != 0) {
+                try {
+                    Thread.sleep(retryPeriodMs);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
         }
 
     }
 
-    private KafkaConsumer<Void, SensorsSnapshotAvro> createConsumer() {
-        Properties properties = new Properties();
-        properties.put(ConsumerConfig.CLIENT_ID_CONFIG, kafkaProperties.consumer().snapshotProcessor().clientId());
-        properties.put(ConsumerConfig.GROUP_ID_CONFIG, kafkaProperties.consumer().snapshotProcessor().groupId());
-        properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProperties.server());
-        properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, VoidDeserializer.class.getCanonicalName());
-        properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, SensorsSnapshotAvroDeserializer.class);
-        properties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false); // Отключение автокомита
-        properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"); // При вхождении в новую группу забирать с начала
-
-        return new KafkaConsumer<>(properties);
-    }
-
-    private void processRecord(ConsumerRecord<Void, SensorsSnapshotAvro> record) {
-        SensorsSnapshotAvro snapshot = record.value();
-
-        Map<String, SensorStateAvro> sensorsState = snapshot.getSensorsState();
-
+    private void processSnapshot(SensorsSnapshotAvro snapshot) {
         List<Scenario> scenarios = scenarioRepository.findByHubId(snapshot.getHubId());
 
         for (Scenario s : scenarios) {
@@ -113,40 +108,13 @@ public class SnapshotProcessor {
             if (doAction) {
                 for (Map.Entry<String, Action> entry : s.getActions().entrySet()) {
                     Action action = entry.getValue();
+                    String hubId = s.getHubId();
                     String deviceId = entry.getKey();
 
-                    ActionTypeProto actionTypeProto = ActionTypeProto.valueOf(action.getType().name());
-
-                    DeviceActionProto deviceActionProto = DeviceActionProto.newBuilder()
-                            .setSensorId(deviceId)
-                            .setType(actionTypeProto)
-                            .build();
-
-                    Integer actionValue = action.getValue();
-                    if (actionValue != null) {
-                        deviceActionProto = DeviceActionProto.newBuilder(deviceActionProto)
-                                .setValue(action.getValue()).build();
-                    }
-
-
-                    Instant now = Instant.now();
-                    com.google.protobuf.Timestamp gts = com.google.protobuf.Timestamp.newBuilder()
-                            .setSeconds(now.getEpochSecond())
-                            .setNanos(now.getNano())
-                            .build();
-
-                    DeviceActionRequest request = DeviceActionRequest.newBuilder()
-                            .setHubId(snapshot.getHubId())
-                            .setScenarioName(s.getName())
-                            .setAction(deviceActionProto)
-                            .setTimestamp(gts)
-                            .build();
-
                     try {
-                        log.info("do action request={}", request);
-                        hubRouterClient.withDeadlineAfter(3, TimeUnit.SECONDS).handleDeviceAction(request);
+                        hubRouterService.sendDeviceAction(hubId, deviceId, s.getName(), action);
                     } catch (Exception e) {
-                        log.error("Error during hubRouterClient.handleDeviceAction", e);
+                        log.error("Error during sendDeviceAction", e);
                     }
 
                 }
@@ -300,4 +268,18 @@ public class SnapshotProcessor {
 
         return value;
     }
+
+    private KafkaConsumer<Void, SensorsSnapshotAvro> createConsumer() {
+        Properties properties = new Properties();
+        properties.put(ConsumerConfig.CLIENT_ID_CONFIG, kafkaProperties.consumer().snapshotProcessor().clientId());
+        properties.put(ConsumerConfig.GROUP_ID_CONFIG, kafkaProperties.consumer().snapshotProcessor().groupId());
+        properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProperties.server());
+        properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, VoidDeserializer.class.getCanonicalName());
+        properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, SensorsSnapshotAvroDeserializer.class);
+        properties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false); // Отключение автокомита
+        properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"); // При вхождении в новую группу забирать с начала
+
+        return new KafkaConsumer<>(properties);
+    }
+
 }

@@ -12,6 +12,7 @@ import org.springframework.validation.annotation.Validated;
 public record KafkaProperties(
         @NotBlank
         String server,
+        Long retryPeriodMs,
         @Valid
         Consumer consumer
 ) {
