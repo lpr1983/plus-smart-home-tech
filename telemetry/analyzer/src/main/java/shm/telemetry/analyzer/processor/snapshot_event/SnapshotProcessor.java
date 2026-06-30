@@ -251,8 +251,7 @@ public class SnapshotProcessor {
     }
 
     private Boolean getBoolSensorValue(SensorStateAvro sensorState, ConditionType conditionType) {
-        List<ConditionType> suitableConditions = List.of(ConditionType.CO2LEVEL,
-                ConditionType.MOTION,
+        List<ConditionType> suitableConditions = List.of(ConditionType.MOTION,
                 ConditionType.SWITCH
         );
 

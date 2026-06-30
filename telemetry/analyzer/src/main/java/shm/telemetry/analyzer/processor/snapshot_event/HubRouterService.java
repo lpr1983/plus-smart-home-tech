@@ -18,12 +18,12 @@ import java.util.concurrent.TimeUnit;
 public class HubRouterService {
     private final Logger log = LoggerFactory.getLogger(HubRouterService.class);
     private final HubRouterControllerGrpc.HubRouterControllerBlockingStub hubRouterClient;
-    private final long sendTimeot;
+    private final long sendTimeotMs;
 
     public HubRouterService(@GrpcClient("hub-router") HubRouterControllerGrpc.HubRouterControllerBlockingStub hubRouterClient,
-                            @Value("${grpc.client.hub-router.send-timeout-ms}") Integer sendTimeout) {
+                            @Value("${grpc.client.hub-router.send-timeout-ms}") Integer sendTimeotMs) {
         this.hubRouterClient = hubRouterClient;
-        this.sendTimeot = sendTimeout;
+        this.sendTimeotMs = sendTimeotMs;
     }
 
     public void sendDeviceAction(String hubId, String deviceId, String scenarioName, Action action) {
@@ -55,7 +55,7 @@ public class HubRouterService {
                 .build();
 
         log.info("do action request={}", request);
-        hubRouterClient.withDeadlineAfter(3, TimeUnit.SECONDS).handleDeviceAction(request);
+        hubRouterClient.withDeadlineAfter(sendTimeotMs, TimeUnit.MILLISECONDS).handleDeviceAction(request);
     }
 
 
