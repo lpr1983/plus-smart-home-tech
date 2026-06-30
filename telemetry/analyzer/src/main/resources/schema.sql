@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS scenarios (
 -- создаём таблицу sensors
 CREATE TABLE IF NOT EXISTS sensors (
     id VARCHAR PRIMARY KEY,
-    hub_id VARCHAR
+    hub_id VARCHAR,
+    type VARCHAR
 );
 
 -- создаём таблицу conditions
@@ -17,7 +18,8 @@ CREATE TABLE IF NOT EXISTS conditions (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     type VARCHAR,
     operation VARCHAR,
-    value INTEGER
+    int_value INTEGER,
+    bool_value BOOLEAN
 );
 
 -- создаём таблицу actions

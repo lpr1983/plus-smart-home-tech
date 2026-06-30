@@ -40,4 +40,11 @@ public class Action {
         this.value = value;
     }
 
+    @Override
+    public String toString() {
+        return "Action{" +
+                "type=" + type +
+                ", value=" + value +
+                '}';
+    }
 }

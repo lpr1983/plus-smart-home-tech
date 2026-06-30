@@ -1,5 +1,6 @@
 package shm.telemetry.analyzer.model;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -21,7 +22,11 @@ public class Condition {
     @Enumerated(EnumType.STRING)
     private ConditionOperation operation;
 
-    private Integer value;
+    @Column(name = "int_value")
+    private Integer intValue;
+
+    @Column(name = "bool_value")
+    private Boolean boolValue;
 
     public Long getId() {
         return id;
@@ -43,12 +48,30 @@ public class Condition {
         this.operation = operation;
     }
 
-    public Integer getValue() {
-        return value;
+    public Integer getIntValue() {
+        return intValue;
     }
 
-    public void setValue(Integer value) {
-        this.value = value;
+    public void setIntValue(Integer intValue) {
+        this.intValue = intValue;
     }
 
+    public Boolean getBoolValue() {
+        return boolValue;
+    }
+
+    public void setBoolValue(Boolean boolValue) {
+        this.boolValue = boolValue;
+    }
+
+    @Override
+    public String toString() {
+        return "Condition{" +
+                "id=" + id +
+                ", type=" + type +
+                ", operation=" + operation +
+                ", intValue=" + intValue +
+                ", boolValue=" + boolValue +
+                '}';
+    }
 }

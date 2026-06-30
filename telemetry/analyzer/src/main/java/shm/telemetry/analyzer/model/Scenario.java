@@ -3,6 +3,7 @@ package shm.telemetry.analyzer.model;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -14,6 +15,7 @@ import jakarta.persistence.Table;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 @Entity
 @Table(name = "scenarios")
@@ -27,14 +29,14 @@ public class Scenario {
 
     private String name;
 
-    @OneToMany(cascade = CascadeType.REMOVE)
+    @OneToMany(cascade = CascadeType.REMOVE, fetch = FetchType.EAGER)
     @JoinTable(name = "scenario_conditions",
             joinColumns = @JoinColumn(name = "scenario_id"),
             inverseJoinColumns = @JoinColumn(name = "condition_id"))
     @MapKeyColumn(name = "sensor_id")
     private Map<String, Condition> conditions = new HashMap<>();
 
-    @OneToMany(cascade = CascadeType.REMOVE)
+    @OneToMany(cascade = CascadeType.REMOVE, fetch = FetchType.EAGER)
     @JoinTable(name = "scenario_actions",
             joinColumns = @JoinColumn(name = "scenario_id"),
             inverseJoinColumns = @JoinColumn(name = "action_id"))
@@ -75,5 +77,16 @@ public class Scenario {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    @Override
+    public String toString() {
+        return "Scenario{" +
+                "id=" + id +
+                ", hubId='" + hubId + '\'' +
+                ", name='" + name + '\'' +
+                ", conditions=" + conditions +
+                ", actions=" + actions +
+                '}';
     }
 }

@@ -4,6 +4,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.ConfigurableApplicationContext;
+import shm.telemetry.analyzer.processor.snapshot_event.SnapshotProcessor;
 import shm.telemetry.analyzer.processor.hub_event.HubEventProcessor;
 
 @SpringBootApplication
@@ -19,7 +20,7 @@ public class Analyzer {
         hubEventsThread.setName("HubEventHandlerThread");
         hubEventsThread.start();
 
-//        final SnapshotProcessor snapshotProcessor = context.getBean(SnapshotProcessor.class);
-//        snapshotProcessor.run();
+        final SnapshotProcessor snapshotProcessor = context.getBean(SnapshotProcessor.class);
+        snapshotProcessor.run();
     }
 }

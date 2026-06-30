@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import ru.yandex.practicum.kafka.telemetry.event.DeviceAddedEventAvro;
+import shm.telemetry.analyzer.model.DeviceType;
 import shm.telemetry.analyzer.model.Sensor;
 import shm.telemetry.analyzer.repository.SensorRepository;
 
@@ -22,7 +23,7 @@ public class DeviceAddedEventHandler implements HubEventHandler<DeviceAddedEvent
     @Override
     @Transactional
     public void handle(String hubId, DeviceAddedEventAvro payload) {
-        String sensorId = ((DeviceAddedEventAvro) payload).getId();
+        String sensorId = payload.getId();
         Optional<Sensor> searchResult = sensorRepository.findByIdAndHubId(sensorId, hubId);
 
         if (searchResult.isPresent()) {
@@ -33,6 +34,7 @@ public class DeviceAddedEventHandler implements HubEventHandler<DeviceAddedEvent
         Sensor sensor = new Sensor();
         sensor.setId(sensorId);
         sensor.setHubId(hubId);
+        sensor.setType(DeviceType.valueOf(payload.getType().name()));
         sensorRepository.save(sensor);
 
         log.info("created sensor id={}, hubId={}", sensorId, hubId);

@@ -61,6 +61,15 @@ public class ScenarioAddedEventHandler implements HubEventHandler<ScenarioAddedE
             Condition condition = new Condition();
             condition.setOperation(ConditionOperation.valueOf(sc.getOperation().name()));
             condition.setType(ConditionType.valueOf(sc.getType().name()));
+            Class cl = sc.getValue().getClass();
+            if (cl == Integer.class) {
+                condition.setIntValue((Integer) sc.getValue());
+            } else if (cl == Boolean.class) {
+                condition.setBoolValue((Boolean) sc.getValue());
+            } else {
+                throw new IllegalArgumentException("Unknown value type : " + cl);
+            }
+
             conditionRepository.save(condition);
             log.info("created condition={}", condition);
             scenario.getConditions().put(sc.getSensorId(), condition);

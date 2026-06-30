@@ -2,6 +2,8 @@ package shm.telemetry.analyzer.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -13,6 +15,9 @@ public class Sensor {
 
     @Column(name = "hub_id")
     private String hubId;
+
+    @Enumerated(EnumType.STRING)
+    private DeviceType type;
 
     public String getId() {
         return id;
@@ -28,5 +33,13 @@ public class Sensor {
 
     public void setHubId(String hubId) {
         this.hubId = hubId;
+    }
+
+    public DeviceType getType() {
+        return type;
+    }
+
+    public void setType(DeviceType type) {
+        this.type = type;
     }
 }
