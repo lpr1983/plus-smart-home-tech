@@ -1,8 +1,9 @@
-package shm.telemetry.aggregator.kafka;
+package shm.telemetry.analyzer.kafka;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -13,25 +14,36 @@ public record KafkaProperties(
         String server,
         Long retryPeriodMs,
         @Valid
-        Producer producer,
-        @Valid
         Consumer consumer
 ) {
-        public record Producer(
-                @NotBlank
-                String topic
+        public record Consumer(
+                @Valid
+                SnapshotProcessor snapshotProcessor,
+                @Valid
+                HubEventProcessor hubEventProcessor,
+                @NotNull
+                @Positive
+                long pollTimeout
         ) {
         }
 
-        public record Consumer(
+        public record SnapshotProcessor(
                 @NotBlank
                 String topic,
                 @NotBlank
                 String clientId,
                 @NotBlank
-                String groupId,
-                @NotNull
-                Long consumeAttemptTimeoutMs
+                String groupId
+        ) {
+        }
+
+        public record HubEventProcessor(
+                @NotBlank
+                String topic,
+                @NotBlank
+                String clientId,
+                @NotBlank
+                String groupId
         ) {
         }
 }

@@ -46,48 +46,64 @@ public class AggregationStarter {
     }
 
     public void work() {
-        final List<String> consumerTopics = List.of(kafkaProperties.consumer().topic());
-        ;
-        final String producerTopic = kafkaProperties.producer().topic();
-        ;
-        final Duration pollTimeout = Duration.ofMillis(
-                kafkaProperties.consumer().consumeAttemptTimeoutMs());
-        ;
+        List<String> consumerTopics = List.of(kafkaProperties.consumer().topic());
+        String producerTopic = kafkaProperties.producer().topic();
+        Duration pollTimeout = Duration.ofMillis(kafkaProperties.consumer().consumeAttemptTimeoutMs());
 
-        try (
-                KafkaConsumer<Void, SensorEventAvro> consumer = createConsumer();
-                Producer<Void, SpecificRecordBase> producer = createProducer();
-        ) {
+        while (true) {
+            Thread shutdownHook = null;
 
-            Runtime.getRuntime().addShutdownHook(new Thread(consumer::wakeup));
+            try (
+                    KafkaConsumer<Void, SensorEventAvro> consumer = createConsumer();
+                    Producer<Void, SpecificRecordBase> producer = createProducer();
+            ) {
+                shutdownHook = new Thread(consumer::wakeup);
+                Runtime.getRuntime().addShutdownHook(shutdownHook);
 
-            consumer.subscribe(consumerTopics);
+                consumer.subscribe(consumerTopics);
 
-            while (true) {
-                ConsumerRecords<Void, SensorEventAvro> records = consumer.poll(pollTimeout);
+                while (true) {
+                    ConsumerRecords<Void, SensorEventAvro> records = consumer.poll(pollTimeout);
 
-                List<SensorsSnapshotAvro> updatedSnapshots = processRecordsAndReturnUpdatedSnapshots(records);
+                    List<SensorsSnapshotAvro> updatedSnapshots = processRecordsAndReturnUpdatedSnapshots(records);
 
-                List<Future<RecordMetadata>> results = new ArrayList<>();
+                    List<Future<RecordMetadata>> results = new ArrayList<>();
 
-                for (SensorsSnapshotAvro snapshotAvro : updatedSnapshots) {
-                    ProducerRecord<Void, SpecificRecordBase> record = new ProducerRecord<>(producerTopic, snapshotAvro);
-                    results.add(producer.send(record));
+                    for (SensorsSnapshotAvro snapshotAvro : updatedSnapshots) {
+                        ProducerRecord<Void, SpecificRecordBase> record = new ProducerRecord<>(producerTopic, snapshotAvro);
+                        results.add(producer.send(record));
+                    }
+
+                    for (Future<RecordMetadata> f : results) {
+                        f.get();
+                    }
+
+                    if (!records.isEmpty()) {
+                        consumer.commitSync();
+                    }
                 }
-
-                for (Future<RecordMetadata> f : results) {
-                    f.get();
+            } catch (WakeupException ignore) {
+                log.info("Завершение работы");
+                return;
+            } catch (Exception e) {
+                if (shutdownHook != null) {
+                    Runtime.getRuntime().removeShutdownHook(shutdownHook);
                 }
+                log.error("Ошибка в цикле обработки данных work()", e);
+            }
 
-                if (!records.isEmpty()) {
-                    consumer.commitSync();
+            Long retryPeriodMs = kafkaProperties.retryPeriodMs();
+            if (retryPeriodMs == null) {
+                return;
+            }
+            if (kafkaProperties.retryPeriodMs() != 0) {
+                try {
+                    Thread.sleep(retryPeriodMs);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
                 }
             }
-        } catch (WakeupException ignore) {
-            log.info("Завершение работы");
-        } catch (Exception e) {
-            log.error("Ошибка в цикле обработки данных work()", e);
-            throw new RuntimeException("Critical error in aggregator", e);
         }
     }
 
