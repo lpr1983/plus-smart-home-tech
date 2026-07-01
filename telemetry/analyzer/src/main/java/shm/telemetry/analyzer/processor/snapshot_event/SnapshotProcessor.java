@@ -75,7 +75,6 @@ public class SnapshotProcessor {
                 }
             } catch (WakeupException ignore) {
                 log.info("Завершение работы SnapshotProcessor");
-                return;
             } catch (Exception e) {
                 log.error("Ошибка в цикле обработки данных SnapshotProcessor", e);
                 if (shutdownHook != null) {

@@ -84,7 +84,6 @@ public class AggregationStarter {
                 }
             } catch (WakeupException ignore) {
                 log.info("Завершение работы");
-                return;
             } catch (Exception e) {
                 if (shutdownHook != null) {
                     Runtime.getRuntime().removeShutdownHook(shutdownHook);

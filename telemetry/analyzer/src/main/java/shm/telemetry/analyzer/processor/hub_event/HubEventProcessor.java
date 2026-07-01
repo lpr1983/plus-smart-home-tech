@@ -76,7 +76,6 @@ public class HubEventProcessor implements Runnable {
                 }
             } catch (WakeupException ignore) {
                 log.info("Завершение работы HubEventProcessor");
-                return;
             } catch (Exception e) {
                 log.error("Ошибка в цикле обработки данных HubEventProcessor", e);
                 if (shutdownHook != null) {
