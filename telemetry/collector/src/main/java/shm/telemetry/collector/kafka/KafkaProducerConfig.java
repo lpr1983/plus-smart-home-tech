@@ -1,5 +1,6 @@
 package shm.telemetry.collector.kafka;
 
+import avro.serialization.GeneralAvroSerializer;
 import org.apache.avro.specific.SpecificRecordBase;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
@@ -12,7 +13,7 @@ import org.springframework.context.annotation.Configuration;
 import java.util.Properties;
 
 @Configuration
-public class KafkaProcucerConfig {
+public class KafkaProducerConfig {
 
     @Bean
     public Producer<Void, SpecificRecordBase> kafkaProducer(@Value("${kafka.server}") String kafkaServer) {

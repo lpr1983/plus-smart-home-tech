@@ -132,7 +132,14 @@ public class AvroHubEventMapper {
     private static ScenarioConditionAvro toScenarioConditionAvro(ScenarioCondition obj) {
         ScenarioConditionAvro avroObj = new ScenarioConditionAvro();
 
-        avroObj.setValue(obj.getValue());
+        if (obj.getValue() != null) {
+            avroObj.setValue(obj.getValue());
+        } else if (obj.getBoolValue() != null) {
+            avroObj.setValue(obj.getBoolValue());
+        } else {
+            avroObj.setValue(null);
+        }
+
         avroObj.setType(toConditionTypeAvro(obj.getType()));
         avroObj.setOperation(toConditionOperationAvro(obj.getOperation()));
         avroObj.setSensorId(obj.getSensorId());

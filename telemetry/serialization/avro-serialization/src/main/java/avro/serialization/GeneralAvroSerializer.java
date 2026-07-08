@@ -1,12 +1,12 @@
-package shm.telemetry.collector.kafka;
+package avro.serialization;
 
 import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.EncoderFactory;
 import org.apache.avro.specific.SpecificDatumWriter;
 import org.apache.avro.specific.SpecificRecordBase;
+import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.serialization.Serializer;
-import shm.telemetry.collector.exception.SerializationException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
