@@ -14,10 +14,6 @@ public class ChangeProductQuantityRequest {
     public ChangeProductQuantityRequest() {
     }
 
-    public ChangeProductQuantityRequest(UUID productId, Long newQuantity) {
-        this.productId = productId;
-        this.newQuantity = newQuantity;
-    }
 
     public UUID getProductId() {
         return productId;

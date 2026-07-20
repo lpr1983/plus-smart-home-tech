@@ -16,7 +16,7 @@ import shm.commerce.interactionapi.dto.SetProductQuantityStateRequest;
 import java.util.List;
 import java.util.UUID;
 
-@FeignClient(name = "shopping-store")
+//@FeignClient(name = "shopping-store")
 public interface ShoppingStoreClient {
 
     @GetMapping("/api/v1/shopping-store")

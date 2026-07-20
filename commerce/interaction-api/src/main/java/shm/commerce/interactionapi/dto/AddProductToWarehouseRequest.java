@@ -15,10 +15,6 @@ public class AddProductToWarehouseRequest {
     public AddProductToWarehouseRequest() {
     }
 
-    public AddProductToWarehouseRequest(UUID productId, Long quantity) {
-        this.productId = productId;
-        this.quantity = quantity;
-    }
 
     public UUID getProductId() {
         return productId;

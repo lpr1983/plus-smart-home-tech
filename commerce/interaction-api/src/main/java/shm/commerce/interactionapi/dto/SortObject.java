@@ -10,14 +10,6 @@ public class SortObject {
     public SortObject() {
     }
 
-    public SortObject(String direction, String nullHandling, Boolean ascending,
-                      String property, Boolean ignoreCase) {
-        this.direction = direction;
-        this.nullHandling = nullHandling;
-        this.ascending = ascending;
-        this.property = property;
-        this.ignoreCase = ignoreCase;
-    }
 
     public String getDirection() {
         return direction;

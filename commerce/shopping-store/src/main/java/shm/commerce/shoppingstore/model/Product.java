@@ -1,44 +1,59 @@
-package shm.commerce.interactionapi.dto;
+package shm.commerce.shoppingstore.model;
 
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.NotNull;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
 import java.util.UUID;
 
-public class ProductDto {
-    private UUID productId;
+@Entity
+@Table(name = "products")
+public class Product {
 
-    @NotNull
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "id", nullable = false, updatable = false)
+    private UUID id;
+
+    @Column(name = "product_name", nullable = false)
     private String productName;
 
-    @NotNull
+    @Column(name = "description", nullable = false, columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "image_src")
     private String imageSrc;
 
-    @NotNull
+    @Enumerated(EnumType.STRING)
+    @Column(name = "quantity_state", nullable = false)
     private QuantityState quantityState;
 
-    @NotNull
+    @Enumerated(EnumType.STRING)
+    @Column(name = "product_state", nullable = false)
     private ProductState productState;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "product_category")
     private ProductCategory productCategory;
 
-    @NotNull
-    @DecimalMin("1")
+    @Column(name = "price", nullable = false, precision = 19, scale = 2)
     private BigDecimal price;
 
-    public ProductDto() {
+    public Product() {
     }
 
-
-    public UUID getProductId() {
-        return productId;
+    public UUID getId() {
+        return id;
     }
 
-    public void setProductId(UUID productId) {
-        this.productId = productId;
+    public void setId(UUID id) {
+        this.id = id;
     }
 
     public String getProductName() {

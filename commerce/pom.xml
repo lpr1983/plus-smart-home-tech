@@ -12,6 +12,10 @@
     <artifactId>commerce</artifactId>
     <packaging>pom</packaging>
     <dependencies>
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
     </dependencies>
 
 </project>

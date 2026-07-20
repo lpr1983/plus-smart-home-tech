@@ -14,10 +14,6 @@ public class SetProductQuantityStateRequest {
     public SetProductQuantityStateRequest() {
     }
 
-    public SetProductQuantityStateRequest(UUID productId, QuantityState quantityState) {
-        this.productId = productId;
-        this.quantityState = quantityState;
-    }
 
     public UUID getProductId() {
         return productId;

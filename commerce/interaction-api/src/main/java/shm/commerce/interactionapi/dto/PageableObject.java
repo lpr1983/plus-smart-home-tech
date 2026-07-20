@@ -13,15 +13,6 @@ public class PageableObject {
     public PageableObject() {
     }
 
-    public PageableObject(Long offset, List<SortObject> sort, Boolean unpaged,
-                          Boolean paged, Integer pageNumber, Integer pageSize) {
-        this.offset = offset;
-        this.sort = sort;
-        this.unpaged = unpaged;
-        this.paged = paged;
-        this.pageNumber = pageNumber;
-        this.pageSize = pageSize;
-    }
 
     public Long getOffset() {
         return offset;

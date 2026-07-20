@@ -19,11 +19,6 @@ public class DimensionDto {
     public DimensionDto() {
     }
 
-    public DimensionDto(Double width, Double height, Double depth) {
-        this.width = width;
-        this.height = height;
-        this.depth = depth;
-    }
 
     public Double getWidth() {
         return width;

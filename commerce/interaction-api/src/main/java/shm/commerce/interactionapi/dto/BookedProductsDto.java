@@ -15,11 +15,6 @@ public class BookedProductsDto {
     public BookedProductsDto() {
     }
 
-    public BookedProductsDto(Double deliveryWeight, Double deliveryVolume, Boolean fragile) {
-        this.deliveryWeight = deliveryWeight;
-        this.deliveryVolume = deliveryVolume;
-        this.fragile = fragile;
-    }
 
     public Double getDeliveryWeight() {
         return deliveryWeight;

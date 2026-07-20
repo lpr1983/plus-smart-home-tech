@@ -23,13 +23,6 @@ public class NewProductInWarehouseRequest {
     public NewProductInWarehouseRequest() {
     }
 
-    public NewProductInWarehouseRequest(UUID productId, Boolean fragile,
-                                        DimensionDto dimension, Double weight) {
-        this.productId = productId;
-        this.fragile = fragile;
-        this.dimension = dimension;
-        this.weight = weight;
-    }
 
     public UUID getProductId() {
         return productId;

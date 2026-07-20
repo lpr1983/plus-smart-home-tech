@@ -15,10 +15,6 @@ public class ShoppingCartDto {
     public ShoppingCartDto() {
     }
 
-    public ShoppingCartDto(UUID shoppingCartId, Map<UUID, Long> products) {
-        this.shoppingCartId = shoppingCartId;
-        this.products = products;
-    }
 
     public UUID getShoppingCartId() {
         return shoppingCartId;
