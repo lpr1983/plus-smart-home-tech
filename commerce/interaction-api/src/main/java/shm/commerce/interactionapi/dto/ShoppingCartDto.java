@@ -1,0 +1,38 @@
+package shm.commerce.interactionapi.dto;
+
+import jakarta.validation.constraints.NotNull;
+
+import java.util.Map;
+import java.util.UUID;
+
+public class ShoppingCartDto {
+    @NotNull
+    private UUID shoppingCartId;
+
+    @NotNull
+    private Map<UUID, Long> products;
+
+    public ShoppingCartDto() {
+    }
+
+    public ShoppingCartDto(UUID shoppingCartId, Map<UUID, Long> products) {
+        this.shoppingCartId = shoppingCartId;
+        this.products = products;
+    }
+
+    public UUID getShoppingCartId() {
+        return shoppingCartId;
+    }
+
+    public void setShoppingCartId(UUID shoppingCartId) {
+        this.shoppingCartId = shoppingCartId;
+    }
+
+    public Map<UUID, Long> getProducts() {
+        return products;
+    }
+
+    public void setProducts(Map<UUID, Long> products) {
+        this.products = products;
+    }
+}
