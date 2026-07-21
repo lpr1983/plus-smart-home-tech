@@ -23,6 +23,7 @@
 
         <module>commerce/interaction-api</module>
         <module>commerce/shopping-store</module>
+        <module>commerce/warehouse</module>
     </modules>
 
     <properties>
