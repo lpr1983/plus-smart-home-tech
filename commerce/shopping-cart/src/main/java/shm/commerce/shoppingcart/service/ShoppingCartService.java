@@ -1,5 +1,7 @@
 package shm.commerce.shoppingcart.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import shm.commerce.interactionapi.client.WarehouseClient;
@@ -23,6 +25,8 @@ import java.util.UUID;
 @Service
 public class ShoppingCartService {
 
+    private static final Logger log = LoggerFactory.getLogger(ShoppingCartService.class);
+
     private final ShoppingCartRepository shoppingCartRepository;
     private final ShoppingCartMapper shoppingCartMapper;
     private final WarehouseClient warehouseClient;
@@ -37,21 +41,33 @@ public class ShoppingCartService {
 
     @Transactional
     public ShoppingCartDto getShoppingCart(String username) {
-        ShoppingCart shoppingCart = getOrCreateShoppingCart(validateUsername(username));
+        String normalizedUsername = validateUsername(username);
+        ShoppingCart shoppingCart = getOrCreateShoppingCart(normalizedUsername);
+
+        log.debug("Shopping cart requested: shoppingCartId={}, username={}, itemCount={}",
+                shoppingCart.getId(), normalizedUsername, shoppingCart.getItems().size());
         return shoppingCartMapper.toDto(shoppingCart);
     }
 
     @Transactional
     public ShoppingCartDto addProductToShoppingCart(String username, Map<UUID, Long> products) {
-        ShoppingCart shoppingCart = getOrCreateShoppingCart(validateUsername(username));
+        String normalizedUsername = validateUsername(username);
+        ShoppingCart shoppingCart = getOrCreateShoppingCart(normalizedUsername);
         ensureActive(shoppingCart);
         Map<UUID, Long> validatedProducts = validateProducts(products);
 
         ShoppingCartDto warehouseRequest = new ShoppingCartDto();
         warehouseRequest.setShoppingCartId(shoppingCart.getId());
         warehouseRequest.setProducts(validatedProducts);
+
+        // Резервируем товары до изменения локальной корзины. Если склад отклонит
+        // запрос, корзина в рамках текущей транзакции останется без изменений.
+        log.debug("Requesting warehouse reservation: shoppingCartId={}, productCount={}",
+                shoppingCart.getId(), validatedProducts.size());
         warehouseClient.checkProductQuantityEnoughForShoppingCart(warehouseRequest);
 
+        // Объединяем запрошенное количество с уже существующими позициями корзины.
+        // Новую сущность создаём только тогда, когда товара в корзине ещё нет.
         for (Map.Entry<UUID, Long> entry : validatedProducts.entrySet()) {
             ShoppingCartItem item = findItem(shoppingCart, entry.getKey());
             if (item == null) {
@@ -65,24 +81,35 @@ public class ShoppingCartService {
             }
         }
 
-        return shoppingCartMapper.toDto(shoppingCartRepository.save(shoppingCart));
+        ShoppingCart savedCart = shoppingCartRepository.save(shoppingCart);
+        log.info("Products added to shopping cart: shoppingCartId={}, username={}, productCount={}, itemCount={}",
+                savedCart.getId(), normalizedUsername, validatedProducts.size(), savedCart.getItems().size());
+        return shoppingCartMapper.toDto(savedCart);
     }
 
     @Transactional
     public void deactivateCurrentShoppingCart(String username) {
-        ShoppingCart shoppingCart = getOrCreateShoppingCart(validateUsername(username));
+        String normalizedUsername = validateUsername(username);
+        ShoppingCart shoppingCart = getOrCreateShoppingCart(normalizedUsername);
         shoppingCart.setActive(false);
         shoppingCartRepository.save(shoppingCart);
+
+        log.info("Shopping cart deactivated: shoppingCartId={}, username={}",
+                shoppingCart.getId(), normalizedUsername);
     }
 
     @Transactional
     public ShoppingCartDto removeFromShoppingCart(String username, List<UUID> productIds) {
-        ShoppingCart shoppingCart = getOrCreateShoppingCart(validateUsername(username));
+        String normalizedUsername = validateUsername(username);
+        ShoppingCart shoppingCart = getOrCreateShoppingCart(normalizedUsername);
         ensureActive(shoppingCart);
         List<UUID> validatedProductIds = validateProductIds(productIds);
 
         List<UUID> missingProductIds = new ArrayList<>();
         List<ShoppingCartItem> itemsToRemove = new ArrayList<>();
+
+        // До изменения корзины собираем отсутствующие товары и позиции для удаления.
+        // Поэтому при отсутствии хотя бы одного товара операция не выполняется частично.
         for (UUID productId : validatedProductIds) {
             ShoppingCartItem item = findItem(shoppingCart, productId);
             if (item == null) {
@@ -93,19 +120,26 @@ public class ShoppingCartService {
         }
 
         if (!missingProductIds.isEmpty()) {
+            log.warn("Cannot remove products from shopping cart: shoppingCartId={}, missingProductIds={}",
+                    shoppingCart.getId(), missingProductIds);
             throw new NoProductsInShoppingCartException(
                     "Products are not present in the shopping cart: " + missingProductIds
             );
         }
 
         shoppingCart.getItems().removeAll(itemsToRemove);
-        return shoppingCartMapper.toDto(shoppingCartRepository.save(shoppingCart));
+        ShoppingCart savedCart = shoppingCartRepository.save(shoppingCart);
+
+        log.info("Products removed from shopping cart: shoppingCartId={}, removedCount={}, itemCount={}",
+                savedCart.getId(), itemsToRemove.size(), savedCart.getItems().size());
+        return shoppingCartMapper.toDto(savedCart);
     }
 
     @Transactional
     public ShoppingCartDto changeProductQuantity(String username,
                                                  ChangeProductQuantityRequest request) {
-        ShoppingCart shoppingCart = getOrCreateShoppingCart(validateUsername(username));
+        String normalizedUsername = validateUsername(username);
+        ShoppingCart shoppingCart = getOrCreateShoppingCart(normalizedUsername);
         ensureActive(shoppingCart);
         validateChangeQuantityRequest(request);
 
@@ -116,7 +150,12 @@ public class ShoppingCartService {
             );
         }
 
-        long quantityToReserve = request.getNewQuantity() - item.getQuantity();
+        long previousQuantity = item.getQuantity();
+        long quantityToReserve = request.getNewQuantity() - previousQuantity;
+
+        // API склада умеет резервировать товары, но не содержит операции возврата.
+        // Поэтому на склад отправляем только положительную разницу, а уменьшение
+        // количества выполняем локально, без внешнего вызова.
         if (quantityToReserve > 0) {
             Map<UUID, Long> productsToReserve = new LinkedHashMap<>();
             productsToReserve.put(request.getProductId(), quantityToReserve);
@@ -124,11 +163,18 @@ public class ShoppingCartService {
             ShoppingCartDto warehouseRequest = new ShoppingCartDto();
             warehouseRequest.setShoppingCartId(shoppingCart.getId());
             warehouseRequest.setProducts(productsToReserve);
+
+            log.debug("Requesting additional warehouse reservation: shoppingCartId={}, productId={}, quantity={}",
+                    shoppingCart.getId(), request.getProductId(), quantityToReserve);
             warehouseClient.checkProductQuantityEnoughForShoppingCart(warehouseRequest);
         }
 
         item.setQuantity(request.getNewQuantity());
-        return shoppingCartMapper.toDto(shoppingCartRepository.save(shoppingCart));
+        ShoppingCart savedCart = shoppingCartRepository.save(shoppingCart);
+
+        log.info("Shopping cart product quantity changed: shoppingCartId={}, productId={}, previous={}, current={}",
+                savedCart.getId(), request.getProductId(), previousQuantity, request.getNewQuantity());
+        return shoppingCartMapper.toDto(savedCart);
     }
 
     private ShoppingCart getOrCreateShoppingCart(String username) {
@@ -140,7 +186,10 @@ public class ShoppingCartService {
         ShoppingCart shoppingCart = new ShoppingCart();
         shoppingCart.setUsername(username);
         shoppingCart.setActive(true);
-        return shoppingCartRepository.save(shoppingCart);
+        ShoppingCart savedCart = shoppingCartRepository.save(shoppingCart);
+
+        log.info("Shopping cart created: shoppingCartId={}, username={}", savedCart.getId(), username);
+        return savedCart;
     }
 
     private String validateUsername(String username) {
@@ -156,6 +205,9 @@ public class ShoppingCartService {
         }
 
         Map<UUID, Long> validatedProducts = new LinkedHashMap<>();
+
+        // Проверяем весь запрос и создаём защитную копию коллекции до её передачи
+        // клиенту склада или использования для изменения сохраняемых сущностей.
         for (Map.Entry<UUID, Long> entry : products.entrySet()) {
             UUID productId = entry.getKey();
             Long quantity = entry.getValue();

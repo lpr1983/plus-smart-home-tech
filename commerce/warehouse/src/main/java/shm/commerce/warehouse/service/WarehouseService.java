@@ -1,5 +1,7 @@
 package shm.commerce.warehouse.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import shm.commerce.interactionapi.dto.AddProductToWarehouseRequest;
@@ -25,6 +27,7 @@ import java.util.UUID;
 @Service
 public class WarehouseService {
 
+    private static final Logger log = LoggerFactory.getLogger(WarehouseService.class);
     private static final String[] ADDRESSES = new String[]{"ADDRESS_1", "ADDRESS_2"};
     private static final String CURRENT_ADDRESS =
             ADDRESSES[new SecureRandom().nextInt(ADDRESSES.length)];
@@ -53,6 +56,8 @@ public class WarehouseService {
         product.setQuantity(0L);
 
         warehouseProductRepository.save(product);
+        log.info("Product registered in warehouse: productId={}, fragile={}, weight={}",
+                productId, product.isFragile(), product.getWeight());
     }
 
     @Transactional
@@ -65,8 +70,12 @@ public class WarehouseService {
         WarehouseProduct product = warehouseProductRepository.findByProductId(productId)
                 .orElseThrow(() -> new NoSpecifiedProductInWarehouseException(productId));
 
-        product.setQuantity(product.getQuantity() + request.getQuantity());
+        long previousQuantity = product.getQuantity();
+        product.setQuantity(previousQuantity + request.getQuantity());
         warehouseProductRepository.save(product);
+
+        log.info("Warehouse quantity increased: productId={}, added={}, previous={}, current={}",
+                productId, request.getQuantity(), previousQuantity, product.getQuantity());
     }
 
     @Transactional
@@ -80,9 +89,15 @@ public class WarehouseService {
             throw new WarehouseValidationException("Shopping cart products must not be null.");
         }
 
+        log.debug("Checking warehouse stock: shoppingCartId={}, productCount={}",
+                shoppingCart.getShoppingCartId(), requestedProducts.size());
+
         Map<UUID, WarehouseProduct> warehouseProducts = new HashMap<>();
         List<String> shortages = new ArrayList<>();
 
+        // Сначала проверяем и загружаем все запрошенные товары, не изменяя остатки.
+        // Это исключает частичное резервирование, если один из следующих товаров
+        // отсутствует на складе или его количества недостаточно.
         for (Map.Entry<UUID, Long> entry : requestedProducts.entrySet()) {
             UUID productId = entry.getKey();
             Long requestedQuantity = entry.getValue();
@@ -111,6 +126,8 @@ public class WarehouseService {
         }
 
         if (!shortages.isEmpty()) {
+            log.warn("Warehouse reservation rejected: shoppingCartId={}, shortages={}",
+                    shoppingCart.getShoppingCartId(), shortages);
             throw new ProductInShoppingCartLowQuantityInWarehouseException(
                     "Not enough products in warehouse: " + String.join("; ", shortages)
             );
@@ -121,6 +138,8 @@ public class WarehouseService {
         boolean fragile = false;
         List<WarehouseProduct> productsToSave = new ArrayList<>();
 
+        // Только после успешной проверки всего запроса резервируем товары
+        // и за один проход рассчитываем характеристики доставки.
         for (Map.Entry<UUID, Long> entry : requestedProducts.entrySet()) {
             WarehouseProduct product = warehouseProducts.get(entry.getKey());
             long requestedQuantity = entry.getValue();
@@ -142,6 +161,10 @@ public class WarehouseService {
         bookedProducts.setDeliveryWeight(deliveryWeight);
         bookedProducts.setDeliveryVolume(deliveryVolume);
         bookedProducts.setFragile(fragile);
+
+        log.info("Warehouse products reserved: shoppingCartId={}, productCount={}, weight={}, volume={}, fragile={}",
+                shoppingCart.getShoppingCartId(), requestedProducts.size(),
+                deliveryWeight, deliveryVolume, fragile);
         return bookedProducts;
     }
 
@@ -153,6 +176,8 @@ public class WarehouseService {
         address.setStreet(CURRENT_ADDRESS);
         address.setHouse(CURRENT_ADDRESS);
         address.setFlat(CURRENT_ADDRESS);
+
+        log.debug("Warehouse address requested: address={}", CURRENT_ADDRESS);
         return address;
     }
 }

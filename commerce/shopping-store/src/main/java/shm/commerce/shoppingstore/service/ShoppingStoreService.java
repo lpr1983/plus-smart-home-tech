@@ -1,5 +1,7 @@
 package shm.commerce.shoppingstore.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -22,6 +24,8 @@ import java.util.UUID;
 @Service
 public class ShoppingStoreService {
 
+    private static final Logger log = LoggerFactory.getLogger(ShoppingStoreService.class);
+
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
 
@@ -35,25 +39,39 @@ public class ShoppingStoreService {
                                       Integer page,
                                       Integer size,
                                       List<String> sortParameters) {
+        log.debug("Getting products: category={}, page={}, size={}, sort={}",
+                category, page, size, sortParameters);
+
         PageRequest pageRequest = PageRequest.of(page, size, buildSort(sortParameters));
         Page<Product> products = productRepository.findAllByProductCategory(
                 productMapper.toEntityProductCategory(category),
                 pageRequest
         );
+
+        log.debug("Found {} products for category={}", products.getNumberOfElements(), category);
         return productMapper.toPageDto(products);
     }
 
     @Transactional
     public ProductDto createNewProduct(ProductDto productDto) {
         Product product = productMapper.toNewEntity(productDto);
-        return productMapper.toDto(productRepository.save(product));
+        Product savedProduct = productRepository.save(product);
+
+        log.info("Product created: productId={}, name={}, category={}",
+                savedProduct.getId(), savedProduct.getProductName(), savedProduct.getProductCategory());
+        return productMapper.toDto(savedProduct);
     }
 
     @Transactional
     public ProductDto updateProduct(ProductDto productDto) {
         Product product = findProduct(productDto.getProductId());
         productMapper.updateEntity(product, productDto);
-        return productMapper.toDto(productRepository.save(product));
+        Product savedProduct = productRepository.save(product);
+
+        log.info("Product updated: productId={}, name={}, state={}, quantityState={}",
+                savedProduct.getId(), savedProduct.getProductName(),
+                savedProduct.getProductState(), savedProduct.getQuantityState());
+        return productMapper.toDto(savedProduct);
     }
 
     @Transactional
@@ -61,6 +79,8 @@ public class ShoppingStoreService {
         Product product = findProduct(productId);
         product.setProductState(ProductState.DEACTIVATE);
         productRepository.save(product);
+
+        log.info("Product deactivated: productId={}", productId);
         return true;
     }
 
@@ -69,11 +89,15 @@ public class ShoppingStoreService {
         Product product = findProduct(request.getProductId());
         product.setQuantityState(productMapper.toEntityQuantityState(request.getQuantityState()));
         productRepository.save(product);
+
+        log.info("Product quantity state changed: productId={}, quantityState={}",
+                request.getProductId(), request.getQuantityState());
         return true;
     }
 
     @Transactional(readOnly = true)
     public ProductDto getProduct(UUID productId) {
+        log.debug("Getting product: productId={}", productId);
         return productMapper.toDto(findProduct(productId));
     }
 
@@ -92,6 +116,10 @@ public class ShoppingStoreService {
 
         List<Sort.Order> orders = new ArrayList<>();
         int index = 0;
+
+        // Spring может передать сортировку как одной строкой "property,DESC"
+        // или как два соседних элемента списка: "property" и "DESC". Индекс
+        // перемещается вручную, чтобы оба варианта преобразовать в один объект Sort.
         while (index < parameters.size()) {
             String current = parameters.get(index);
             if (current == null || current.isBlank()) {
