@@ -36,9 +36,8 @@ public class ShoppingStoreService {
                                       Integer size,
                                       List<String> sortParameters) {
         PageRequest pageRequest = PageRequest.of(page, size, buildSort(sortParameters));
-        Page<Product> products = productRepository.findAllByProductCategoryAndProductState(
+        Page<Product> products = productRepository.findAllByProductCategory(
                 productMapper.toEntityProductCategory(category),
-                ProductState.ACTIVE,
                 pageRequest
         );
         return productMapper.toPageDto(products);

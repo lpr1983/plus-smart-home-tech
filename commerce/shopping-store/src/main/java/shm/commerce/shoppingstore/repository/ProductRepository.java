@@ -5,13 +5,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import shm.commerce.shoppingstore.model.Product;
 import shm.commerce.shoppingstore.model.ProductCategory;
-import shm.commerce.shoppingstore.model.ProductState;
 
 import java.util.UUID;
 
 public interface ProductRepository extends JpaRepository<Product, UUID> {
 
-    Page<Product> findAllByProductCategoryAndProductState(ProductCategory productCategory,
-                                                          ProductState productState,
-                                                          Pageable pageable);
+    Page<Product> findAllByProductCategory(ProductCategory productCategory,
+                                           Pageable pageable);
 }
