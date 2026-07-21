@@ -21,9 +21,9 @@ public interface ShoppingStoreClient {
 
     @GetMapping("/api/v1/shopping-store")
     PageProductDto getProducts(@RequestParam("category") ProductCategory category,
-                               @RequestParam("page") Integer page,
-                               @RequestParam("size") Integer size,
-                               @RequestParam("sort") List<String> sort);
+                               @RequestParam(value = "page", defaultValue = "0") Integer page,
+                               @RequestParam(value = "size", defaultValue = "20") Integer size,
+                               @RequestParam(value = "sort", required = false) List<String> sort);
 
     @PutMapping("/api/v1/shopping-store")
     ProductDto createNewProduct(@Valid @RequestBody ProductDto productDto);
