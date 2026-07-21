@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import shm.commerce.interactionapi.dto.PageProductDto;
 import shm.commerce.interactionapi.dto.ProductCategory;
 import shm.commerce.interactionapi.dto.ProductDto;
-import shm.commerce.interactionapi.dto.SetProductQuantityStateRequest;
+import shm.commerce.interactionapi.dto.QuantityState;
 
 import java.util.List;
 import java.util.UUID;
@@ -36,7 +36,8 @@ public interface ShoppingStoreClient {
 
     @PostMapping("/api/v1/shopping-store/quantityState")
     Boolean setProductQuantityState(
-            @Valid @RequestBody SetProductQuantityStateRequest request);
+            @RequestParam("productId") UUID productId,
+            @RequestParam("quantityState") QuantityState quantityState);
 
     @GetMapping("/api/v1/shopping-store/{productId}")
     ProductDto getProduct(@PathVariable("productId") UUID productId);

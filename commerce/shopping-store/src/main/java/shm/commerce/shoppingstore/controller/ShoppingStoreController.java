@@ -5,6 +5,7 @@ import shm.commerce.interactionapi.client.ShoppingStoreClient;
 import shm.commerce.interactionapi.dto.PageProductDto;
 import shm.commerce.interactionapi.dto.ProductCategory;
 import shm.commerce.interactionapi.dto.ProductDto;
+import shm.commerce.interactionapi.dto.QuantityState;
 import shm.commerce.interactionapi.dto.SetProductQuantityStateRequest;
 import shm.commerce.shoppingstore.service.ShoppingStoreService;
 
@@ -44,7 +45,10 @@ public class ShoppingStoreController implements ShoppingStoreClient {
     }
 
     @Override
-    public Boolean setProductQuantityState(SetProductQuantityStateRequest request) {
+    public Boolean setProductQuantityState(UUID productId, QuantityState quantityState) {
+        SetProductQuantityStateRequest request = new SetProductQuantityStateRequest();
+        request.setProductId(productId);
+        request.setQuantityState(quantityState);
         return shoppingStoreService.setProductQuantityState(request);
     }
 
