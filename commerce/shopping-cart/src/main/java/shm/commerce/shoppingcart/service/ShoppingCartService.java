@@ -120,8 +120,6 @@ public class ShoppingCartService {
         List<UUID> missingProductIds = new ArrayList<>();
         List<ShoppingCartItem> itemsToRemove = new ArrayList<>();
 
-        // До изменения корзины собираем отсутствующие товары и позиции для удаления.
-        // Поэтому при отсутствии хотя бы одного товара операция не выполняется частично.
         for (UUID productId : validatedProductIds) {
             ShoppingCartItem item = findItem(shoppingCart, productId);
             if (item == null) {
@@ -173,7 +171,7 @@ public class ShoppingCartService {
 
         // API склада умеет резервировать товары, но не содержит операции возврата.
         // Поэтому на склад отправляем только положительную разницу, а уменьшение
-        // количества выполняем локально, без внешнего вызова.
+        // количества выполняем без внешнего вызова.
         if (quantityToReserve > 0) {
             Map<UUID, Long> productsToReserve = new LinkedHashMap<>();
             productsToReserve.put(request.getProductId(), quantityToReserve);

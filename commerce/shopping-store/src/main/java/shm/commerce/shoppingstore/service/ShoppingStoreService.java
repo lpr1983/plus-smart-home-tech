@@ -117,9 +117,8 @@ public class ShoppingStoreService {
         List<Sort.Order> orders = new ArrayList<>();
         int index = 0;
 
-        // Spring может передать сортировку как одной строкой "property,DESC"
-        // или как два соседних элемента списка: "property" и "DESC". Индекс
-        // перемещается вручную, чтобы оба варианта преобразовать в один объект Sort.
+        // Параметры могут быть как одной строкой "property,DESC"
+        // так и как два элемента списка: "property" и "DESC".
         while (index < parameters.size()) {
             String current = parameters.get(index);
             if (current == null || current.isBlank()) {

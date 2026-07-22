@@ -95,9 +95,7 @@ public class WarehouseService {
         Map<UUID, WarehouseProduct> warehouseProducts = new HashMap<>();
         List<String> shortages = new ArrayList<>();
 
-        // Сначала проверяем и загружаем все запрошенные товары, не изменяя остатки.
-        // Это исключает частичное резервирование, если один из следующих товаров
-        // отсутствует на складе или его количества недостаточно.
+        // Проверить запрошенные товары
         for (Map.Entry<UUID, Long> entry : requestedProducts.entrySet()) {
             UUID productId = entry.getKey();
             Long requestedQuantity = entry.getValue();
