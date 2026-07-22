@@ -3,7 +3,9 @@ package shm.commerce.shoppingcart.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import shm.commerce.interactionapi.client.WarehouseClient;
 import shm.commerce.interactionapi.dto.ChangeProductQuantityRequest;
 import shm.commerce.interactionapi.dto.ShoppingCartDto;
@@ -30,13 +32,16 @@ public class ShoppingCartService {
     private final ShoppingCartRepository shoppingCartRepository;
     private final ShoppingCartMapper shoppingCartMapper;
     private final WarehouseClient warehouseClient;
+    private final TransactionTemplate transactionTemplate;
 
     public ShoppingCartService(ShoppingCartRepository shoppingCartRepository,
                                ShoppingCartMapper shoppingCartMapper,
-                               WarehouseClient warehouseClient) {
+                               WarehouseClient warehouseClient,
+                               PlatformTransactionManager transactionManager) {
         this.shoppingCartRepository = shoppingCartRepository;
         this.shoppingCartMapper = shoppingCartMapper;
         this.warehouseClient = warehouseClient;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     @Transactional
@@ -49,42 +54,49 @@ public class ShoppingCartService {
         return shoppingCartMapper.toDto(shoppingCart);
     }
 
-    @Transactional
     public ShoppingCartDto addProductToShoppingCart(String username, Map<UUID, Long> products) {
         String normalizedUsername = validateUsername(username);
-        ShoppingCart shoppingCart = getOrCreateShoppingCart(normalizedUsername);
-        ensureActive(shoppingCart);
-        Map<UUID, Long> validatedProducts = validateProducts(products);
+        validateProducts(products);
+
+        UUID shoppingCartId = transactionTemplate.execute(status -> {
+            ShoppingCart shoppingCart = getOrCreateShoppingCart(normalizedUsername);
+            ensureActive(shoppingCart);
+            return shoppingCart.getId();
+        });
 
         ShoppingCartDto warehouseRequest = new ShoppingCartDto();
-        warehouseRequest.setShoppingCartId(shoppingCart.getId());
-        warehouseRequest.setProducts(validatedProducts);
+        warehouseRequest.setShoppingCartId(shoppingCartId);
+        warehouseRequest.setProducts(products);
 
-        // Резервируем товары до изменения локальной корзины. Если склад отклонит
-        // запрос, корзина в рамках текущей транзакции останется без изменений.
+        // Вызов склада выполняется вне транзакции базы корзины.
         log.debug("Requesting warehouse reservation: shoppingCartId={}, productCount={}",
-                shoppingCart.getId(), validatedProducts.size());
+                shoppingCartId, products.size());
         warehouseClient.checkProductQuantityEnoughForShoppingCart(warehouseRequest);
 
-        // Объединяем запрошенное количество с уже существующими позициями корзины.
-        // Новую сущность создаём только тогда, когда товара в корзине ещё нет.
-        for (Map.Entry<UUID, Long> entry : validatedProducts.entrySet()) {
-            ShoppingCartItem item = findItem(shoppingCart, entry.getKey());
-            if (item == null) {
-                item = new ShoppingCartItem();
-                item.setShoppingCart(shoppingCart);
-                item.setProductId(entry.getKey());
-                item.setQuantity(entry.getValue());
-                shoppingCart.getItems().add(item);
-            } else {
-                item.setQuantity(item.getQuantity() + entry.getValue());
-            }
-        }
+        return transactionTemplate.execute(status -> {
+            ShoppingCart shoppingCart = getShoppingCartById(shoppingCartId);
+            ensureActive(shoppingCart);
 
-        ShoppingCart savedCart = shoppingCartRepository.save(shoppingCart);
-        log.info("Products added to shopping cart: shoppingCartId={}, username={}, productCount={}, itemCount={}",
-                savedCart.getId(), normalizedUsername, validatedProducts.size(), savedCart.getItems().size());
-        return shoppingCartMapper.toDto(savedCart);
+            // Объединяем запрошенное количество с уже существующими позициями корзины.
+            // Новую сущность создаём только тогда, когда товара в корзине ещё нет.
+            for (Map.Entry<UUID, Long> entry : products.entrySet()) {
+                ShoppingCartItem item = findItem(shoppingCart, entry.getKey());
+                if (item == null) {
+                    item = new ShoppingCartItem();
+                    item.setShoppingCart(shoppingCart);
+                    item.setProductId(entry.getKey());
+                    item.setQuantity(entry.getValue());
+                    shoppingCart.getItems().add(item);
+                } else {
+                    item.setQuantity(item.getQuantity() + entry.getValue());
+                }
+            }
+
+            ShoppingCart savedCart = shoppingCartRepository.save(shoppingCart);
+            log.info("Products added to shopping cart: shoppingCartId={}, username={}, productCount={}, itemCount={}",
+                    savedCart.getId(), normalizedUsername, products.size(), savedCart.getItems().size());
+            return shoppingCartMapper.toDto(savedCart);
+        });
     }
 
     @Transactional
@@ -135,23 +147,29 @@ public class ShoppingCartService {
         return shoppingCartMapper.toDto(savedCart);
     }
 
-    @Transactional
     public ShoppingCartDto changeProductQuantity(String username,
                                                  ChangeProductQuantityRequest request) {
         String normalizedUsername = validateUsername(username);
-        ShoppingCart shoppingCart = getOrCreateShoppingCart(normalizedUsername);
-        ensureActive(shoppingCart);
         validateChangeQuantityRequest(request);
 
-        ShoppingCartItem item = findItem(shoppingCart, request.getProductId());
-        if (item == null) {
-            throw new NoProductsInShoppingCartException(
-                    "Product is not present in the shopping cart: " + request.getProductId()
-            );
-        }
+        QuantityChangeContext changeContext = transactionTemplate.execute(status -> {
+            ShoppingCart shoppingCart = getOrCreateShoppingCart(normalizedUsername);
+            ensureActive(shoppingCart);
 
-        long previousQuantity = item.getQuantity();
-        long quantityToReserve = request.getNewQuantity() - previousQuantity;
+            ShoppingCartItem item = findItem(shoppingCart, request.getProductId());
+            if (item == null) {
+                throw new NoProductsInShoppingCartException(
+                        "Product is not present in the shopping cart: " + request.getProductId()
+                );
+            }
+
+            QuantityChangeContext context = new QuantityChangeContext();
+            context.shoppingCartId = shoppingCart.getId();
+            context.previousQuantity = item.getQuantity();
+            return context;
+        });
+
+        long quantityToReserve = request.getNewQuantity() - changeContext.previousQuantity;
 
         // API склада умеет резервировать товары, но не содержит операции возврата.
         // Поэтому на склад отправляем только положительную разницу, а уменьшение
@@ -161,24 +179,37 @@ public class ShoppingCartService {
             productsToReserve.put(request.getProductId(), quantityToReserve);
 
             ShoppingCartDto warehouseRequest = new ShoppingCartDto();
-            warehouseRequest.setShoppingCartId(shoppingCart.getId());
+            warehouseRequest.setShoppingCartId(changeContext.shoppingCartId);
             warehouseRequest.setProducts(productsToReserve);
 
             log.debug("Requesting additional warehouse reservation: shoppingCartId={}, productId={}, quantity={}",
-                    shoppingCart.getId(), request.getProductId(), quantityToReserve);
+                    changeContext.shoppingCartId, request.getProductId(), quantityToReserve);
             warehouseClient.checkProductQuantityEnoughForShoppingCart(warehouseRequest);
         }
 
-        item.setQuantity(request.getNewQuantity());
-        ShoppingCart savedCart = shoppingCartRepository.save(shoppingCart);
+        return transactionTemplate.execute(status -> {
+            ShoppingCart shoppingCart = getShoppingCartById(changeContext.shoppingCartId);
+            ensureActive(shoppingCart);
 
-        log.info("Shopping cart product quantity changed: shoppingCartId={}, productId={}, previous={}, current={}",
-                savedCart.getId(), request.getProductId(), previousQuantity, request.getNewQuantity());
-        return shoppingCartMapper.toDto(savedCart);
+            ShoppingCartItem item = findItem(shoppingCart, request.getProductId());
+            if (item == null) {
+                throw new NoProductsInShoppingCartException(
+                        "Product is not present in the shopping cart: " + request.getProductId()
+                );
+            }
+
+            item.setQuantity(request.getNewQuantity());
+            ShoppingCart savedCart = shoppingCartRepository.save(shoppingCart);
+
+            log.info("Shopping cart product quantity changed: shoppingCartId={}, productId={}, previous={}, current={}",
+                    savedCart.getId(), request.getProductId(),
+                    changeContext.previousQuantity, request.getNewQuantity());
+            return shoppingCartMapper.toDto(savedCart);
+        });
     }
 
     private ShoppingCart getOrCreateShoppingCart(String username) {
-        return shoppingCartRepository.findByUsername(username)
+        return shoppingCartRepository.findByUsernameAndActiveTrue(username)
                 .orElseGet(() -> createShoppingCart(username));
     }
 
@@ -199,15 +230,11 @@ public class ShoppingCartService {
         return username.trim();
     }
 
-    private Map<UUID, Long> validateProducts(Map<UUID, Long> products) {
+    private void validateProducts(Map<UUID, Long> products) {
         if (products == null || products.isEmpty()) {
             throw new ShoppingCartValidationException("Products must not be empty.");
         }
 
-        Map<UUID, Long> validatedProducts = new LinkedHashMap<>();
-
-        // Проверяем весь запрос и создаём защитную копию коллекции до её передачи
-        // клиенту склада или использования для изменения сохраняемых сущностей.
         for (Map.Entry<UUID, Long> entry : products.entrySet()) {
             UUID productId = entry.getKey();
             Long quantity = entry.getValue();
@@ -219,9 +246,7 @@ public class ShoppingCartService {
                         "Product quantity must be greater than zero for product " + productId + "."
                 );
             }
-            validatedProducts.put(productId, quantity);
         }
-        return validatedProducts;
     }
 
     private List<UUID> validateProductIds(List<UUID> productIds) {
@@ -261,5 +286,17 @@ public class ShoppingCartService {
             }
         }
         return null;
+    }
+
+    private ShoppingCart getShoppingCartById(UUID shoppingCartId) {
+        return shoppingCartRepository.findWithItemsById(shoppingCartId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Shopping cart not found: " + shoppingCartId
+                ));
+    }
+
+    private static final class QuantityChangeContext {
+        private UUID shoppingCartId;
+        private long previousQuantity;
     }
 }

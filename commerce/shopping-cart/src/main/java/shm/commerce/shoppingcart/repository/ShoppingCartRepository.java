@@ -10,5 +10,8 @@ import java.util.UUID;
 public interface ShoppingCartRepository extends JpaRepository<ShoppingCart, UUID> {
 
     @EntityGraph(attributePaths = "items")
-    Optional<ShoppingCart> findByUsername(String username);
+    Optional<ShoppingCart> findByUsernameAndActiveTrue(String username);
+
+    @EntityGraph(attributePaths = "items")
+    Optional<ShoppingCart> findWithItemsById(UUID id);
 }
