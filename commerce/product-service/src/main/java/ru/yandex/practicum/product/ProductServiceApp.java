@@ -1,12 +1,12 @@
-package shm.commerce.warehouse;
+package ru.yandex.practicum.product;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class Warehouse {
+public class ProductServiceApp {
 
     public static void main(String[] args) {
-        SpringApplication.run(Warehouse.class, args);
+        SpringApplication.run(ProductServiceApp.class, args);
     }
 }
