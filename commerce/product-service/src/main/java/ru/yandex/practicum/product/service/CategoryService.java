@@ -48,10 +48,13 @@ public class CategoryService {
     }
 
     public CategoryDto getCategoryById(Long id) {
+        return CategoryMapper.toDto(getCategoryEntityById(id));
+    }
+
+    public Category getCategoryEntityById(Long id) {
         log.debug("Getting category: id={}", id);
 
         return categoryRepository.findById(id)
-                .map(CategoryMapper::toDto)
                 .orElseThrow(() -> {
                     log.warn("Category not found: id={}", id);
                     return new NotFoundException(String.format("Category with id %d was not found", id));
