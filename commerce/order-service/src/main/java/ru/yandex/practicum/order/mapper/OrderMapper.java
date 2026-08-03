@@ -40,7 +40,7 @@ public final class OrderMapper {
                 .id(order.getId())
                 .customerName(order.getCustomerName())
                 .customerEmail(order.getCustomerEmail())
-                .status(order.getStatus())
+                .status(order.getStatus().name())
                 .totalPrice(order.getTotalPrice())
                 .statusDetails(order.getStatusDetails())
                 .createdAt(order.getCreatedAt())
