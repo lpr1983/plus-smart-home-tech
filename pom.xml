@@ -19,12 +19,6 @@
         <module>telemetry</module>
         <module>infra</module>
         <module>commerce</module>
-        <module>infra/discovery-server</module>
-
-        <module>commerce/interaction-api</module>
-        <module>commerce/shopping-store</module>
-        <module>commerce/warehouse</module>
-        <module>commerce/shopping-cart</module>
     </modules>
 
     <properties>
