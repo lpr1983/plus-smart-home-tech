@@ -4,30 +4,42 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.yandex.practicum.order.client.InventoryClient;
+import ru.yandex.practicum.order.client.ProductClient;
 import ru.yandex.practicum.order.dto.CreateOrderRequest;
+import ru.yandex.practicum.order.dto.InventoryReserveRequestDto;
 import ru.yandex.practicum.order.dto.OrderDto;
 import ru.yandex.practicum.order.dto.OrderItemRequest;
+import ru.yandex.practicum.order.dto.ProductDto;
 import ru.yandex.practicum.order.entity.Order;
+import ru.yandex.practicum.order.entity.OrderItem;
 import ru.yandex.practicum.order.exception.NotFoundException;
 import ru.yandex.practicum.order.mapper.OrderMapper;
 import ru.yandex.practicum.order.repository.OrderRepository;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
-@Transactional(readOnly = true)
 public class OrderService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
     private final OrderRepository orderRepository;
+    private final ProductClient productClient;
+    private final InventoryClient inventoryClient;
 
-    public OrderService(OrderRepository orderRepository) {
+    public OrderService(
+            OrderRepository orderRepository,
+            ProductClient productClient,
+            InventoryClient inventoryClient
+    ) {
         this.orderRepository = orderRepository;
+        this.productClient = productClient;
+        this.inventoryClient = inventoryClient;
     }
 
-    @Transactional
     public OrderDto createOrder(CreateOrderRequest request) {
         log.info(
                 "Creating order: customerEmail={}, itemCount={}",
@@ -35,8 +47,20 @@ public class OrderService {
                 request.items().size()
         );
 
-        BigDecimal totalPrice = calculateTotalPrice(request.items());
-        Order order = OrderMapper.toEntity(request, totalPrice);
+        List<OrderItem> items = enrichOrderItems(request.items());
+        BigDecimal totalPrice = calculateTotalPrice(items);
+
+        reserveStock(items);
+
+        Order order = new Order();
+        order.setCustomerName(request.customerName());
+        order.setCustomerEmail(request.customerEmail());
+        order.setTotalPrice(totalPrice);
+
+        for (OrderItem item : items) {
+            order.addItem(item);
+        }
+
         Order savedOrder = orderRepository.saveAndFlush(order);
 
         log.info(
@@ -48,6 +72,7 @@ public class OrderService {
         return OrderMapper.toDto(savedOrder);
     }
 
+    @Transactional(readOnly = true)
     public List<OrderDto> getAllOrders() {
         log.debug("Getting all orders");
 
@@ -56,6 +81,7 @@ public class OrderService {
         return orders;
     }
 
+    @Transactional(readOnly = true)
     public OrderDto getOrderById(Long id) {
         log.debug("Getting order: id={}", id);
 
@@ -67,6 +93,7 @@ public class OrderService {
                 });
     }
 
+    @Transactional(readOnly = true)
     public List<OrderDto> getOrdersByEmail(String email) {
         log.debug("Getting orders by customer email: email={}", email);
 
@@ -77,10 +104,51 @@ public class OrderService {
         return orders;
     }
 
-    private static BigDecimal calculateTotalPrice(List<OrderItemRequest> items) {
-        return items.stream()
-                .map(item -> item.price().multiply(BigDecimal.valueOf(item.quantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    private List<OrderItem> enrichOrderItems(List<OrderItemRequest> itemRequests) {
+        List<OrderItem> items = new ArrayList<>(itemRequests.size());
+
+        for (OrderItemRequest request : itemRequests) {
+            ProductDto product = productClient.getProductById(request.productId());
+            if (product == null || !Boolean.TRUE.equals(product.active())) {
+                log.warn("Active product not found: productId={}", request.productId());
+                throw new NotFoundException(String.format(
+                        "Active product with id %d was not found",
+                        request.productId()
+                ));
+            }
+            items.add(createOrderItemEntity(product, request.quantity()));
+        }
+
+        return items;
+    }
+
+    private static OrderItem createOrderItemEntity(ProductDto product, Integer quantity) {
+        OrderItem item = new OrderItem();
+        item.setProductId(product.id());
+        item.setProductName(product.name());
+        item.setQuantity(quantity);
+        item.setPrice(product.price());
+        return item;
+    }
+
+    private void reserveStock(List<OrderItem> items) {
+        for (OrderItem item : items) {
+            inventoryClient.reserveStock(
+                    new InventoryReserveRequestDto(item.getProductId(), item.getQuantity())
+            );
+        }
+    }
+
+    private static BigDecimal calculateTotalPrice(List<OrderItem> items) {
+        BigDecimal totalPrice = BigDecimal.ZERO;
+
+        for (OrderItem item : items) {
+            BigDecimal itemPrice = item.getPrice()
+                    .multiply(BigDecimal.valueOf(item.getQuantity()));
+            totalPrice = totalPrice.add(itemPrice);
+        }
+
+        return totalPrice;
     }
 
     private static List<OrderDto> mapToDto(List<Order> orders) {

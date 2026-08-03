@@ -3,12 +3,12 @@ package ru.yandex.practicum.order.client;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import ru.yandex.practicum.order.dto.ReserveRequest;
-import ru.yandex.practicum.order.dto.ReserveResponse;
+import ru.yandex.practicum.order.dto.InventoryReserveRequestDto;
+import ru.yandex.practicum.order.dto.InventoryReserveResponseDto;
 
 @FeignClient(name = "inventory-service")
 public interface InventoryClient {
 
     @PostMapping("/api/inventory/reserve")
-    ReserveResponse reserveStock(@RequestBody ReserveRequest request);
+    InventoryReserveResponseDto reserveStock(@RequestBody InventoryReserveRequestDto request);
 }
