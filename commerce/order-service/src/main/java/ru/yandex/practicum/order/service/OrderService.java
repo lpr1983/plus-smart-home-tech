@@ -156,9 +156,18 @@ public class OrderService {
     }
 
     private void reserveStock(List<OrderItem> items) {
+        Map<Long, Integer> quantityByProductId = new HashMap<>();
+
         for (OrderItem item : items) {
+            Long productId = item.getProductId();
+            Integer totalQuantity = quantityByProductId.getOrDefault(productId, 0)
+                    + item.getQuantity();
+            quantityByProductId.put(productId, totalQuantity);
+        }
+
+        for (Map.Entry<Long, Integer> entry : quantityByProductId.entrySet()) {
             inventoryClient.reserveStock(
-                    new InventoryReserveRequestDto(item.getProductId(), item.getQuantity())
+                    new InventoryReserveRequestDto(entry.getKey(), entry.getValue())
             );
         }
     }
