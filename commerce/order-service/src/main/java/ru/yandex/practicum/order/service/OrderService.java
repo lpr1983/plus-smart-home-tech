@@ -15,8 +15,8 @@ import ru.yandex.practicum.order.dto.OrderItemRequest;
 import ru.yandex.practicum.order.dto.ProductDto;
 import ru.yandex.practicum.order.entity.Order;
 import ru.yandex.practicum.order.entity.OrderItem;
-import ru.yandex.practicum.order.exception.InactiveProductException;
 import ru.yandex.practicum.order.exception.NotFoundException;
+import ru.yandex.practicum.order.exception.OrderProcessingException;
 import ru.yandex.practicum.order.mapper.OrderMapper;
 import ru.yandex.practicum.order.repository.OrderRepository;
 
@@ -122,7 +122,7 @@ public class OrderService {
                     product = productClient.getProductById(productId);
                 } catch (FeignException.NotFound e) {
                     log.warn("Product not found: productId={}", productId);
-                    throw new NotFoundException(String.format(
+                    throw new OrderProcessingException(String.format(
                             "Product with id %d was not found",
                             productId
                     ), e);
@@ -130,7 +130,7 @@ public class OrderService {
 
                 if (!Boolean.TRUE.equals(product.active())) {
                     log.warn("Product is inactive: productId={}", productId);
-                    throw new InactiveProductException(String.format(
+                    throw new OrderProcessingException(String.format(
                             "Product with id %d is inactive",
                             productId
                     ));

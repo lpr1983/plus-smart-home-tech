@@ -23,11 +23,11 @@ public class GlobalExceptionHandler {
         return new ErrorResponse(HttpStatus.NOT_FOUND.value(), e.getMessage());
     }
 
-    @ExceptionHandler(InactiveProductException.class)
-    @ResponseStatus(HttpStatus.CONFLICT)
-    public ErrorResponse handleInactiveProduct(InactiveProductException e) {
-        log.warn("Inactive product: {}", e.getMessage());
-        return new ErrorResponse(HttpStatus.CONFLICT.value(), e.getMessage());
+    @ExceptionHandler(OrderProcessingException.class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    public ErrorResponse handleOrderProcessing(OrderProcessingException e) {
+        log.warn("Order processing failed: {}", e.getMessage());
+        return new ErrorResponse(HttpStatus.UNPROCESSABLE_ENTITY.value(), e.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
