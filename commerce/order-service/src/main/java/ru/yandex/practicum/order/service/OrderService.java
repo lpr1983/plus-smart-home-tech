@@ -22,7 +22,9 @@ import ru.yandex.practicum.order.repository.OrderRepository;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class OrderService {
@@ -109,26 +111,35 @@ public class OrderService {
 
     private List<OrderItem> enrichOrderItems(List<OrderItemRequest> itemRequests) {
         List<OrderItem> items = new ArrayList<>(itemRequests.size());
+        Map<Long, ProductDto> productCache = new HashMap<>();
 
         for (OrderItemRequest request : itemRequests) {
-            ProductDto product;
-            try {
-                product = productClient.getProductById(request.productId());
-            } catch (FeignException.NotFound e) {
-                log.warn("Product not found: productId={}", request.productId());
-                throw new NotFoundException(String.format(
-                        "Product with id %d was not found",
-                        request.productId()
-                ), e);
+            Long productId = request.productId();
+
+            if (!productCache.containsKey(productId)) {
+                ProductDto product;
+                try {
+                    product = productClient.getProductById(productId);
+                } catch (FeignException.NotFound e) {
+                    log.warn("Product not found: productId={}", productId);
+                    throw new NotFoundException(String.format(
+                            "Product with id %d was not found",
+                            productId
+                    ), e);
+                }
+
+                if (!Boolean.TRUE.equals(product.active())) {
+                    log.warn("Product is inactive: productId={}", productId);
+                    throw new InactiveProductException(String.format(
+                            "Product with id %d is inactive",
+                            productId
+                    ));
+                }
+
+                productCache.put(productId, product);
             }
 
-            if (!Boolean.TRUE.equals(product.active())) {
-                log.warn("Product is inactive: productId={}", request.productId());
-                throw new InactiveProductException(String.format(
-                        "Product with id %d is inactive",
-                        request.productId()
-                ));
-            }
+            ProductDto product = productCache.get(productId);
             items.add(createOrderItemEntity(product, request.quantity()));
         }
 
