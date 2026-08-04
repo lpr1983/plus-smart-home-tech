@@ -1,5 +1,7 @@
 package ru.yandex.practicum.order.service;
 
+import feign.FeignException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -13,6 +15,7 @@ import ru.yandex.practicum.order.dto.OrderItemRequest;
 import ru.yandex.practicum.order.dto.ProductDto;
 import ru.yandex.practicum.order.entity.Order;
 import ru.yandex.practicum.order.entity.OrderItem;
+import ru.yandex.practicum.order.exception.InactiveProductException;
 import ru.yandex.practicum.order.exception.NotFoundException;
 import ru.yandex.practicum.order.mapper.OrderMapper;
 import ru.yandex.practicum.order.repository.OrderRepository;
@@ -108,11 +111,21 @@ public class OrderService {
         List<OrderItem> items = new ArrayList<>(itemRequests.size());
 
         for (OrderItemRequest request : itemRequests) {
-            ProductDto product = productClient.getProductById(request.productId());
-            if (product == null || !Boolean.TRUE.equals(product.active())) {
-                log.warn("Active product not found: productId={}", request.productId());
+            ProductDto product;
+            try {
+                product = productClient.getProductById(request.productId());
+            } catch (FeignException.NotFound e) {
+                log.warn("Product not found: productId={}", request.productId());
                 throw new NotFoundException(String.format(
-                        "Active product with id %d was not found",
+                        "Product with id %d was not found",
+                        request.productId()
+                ), e);
+            }
+
+            if (!Boolean.TRUE.equals(product.active())) {
+                log.warn("Product is inactive: productId={}", request.productId());
+                throw new InactiveProductException(String.format(
+                        "Product with id %d is inactive",
                         request.productId()
                 ));
             }
