@@ -6,17 +6,24 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import ru.yandex.practicum.order.client.InventoryClient;
+import ru.yandex.practicum.order.client.ProductClient;
 import ru.yandex.practicum.order.dto.CreateOrderRequest;
+import ru.yandex.practicum.order.dto.InventoryReserveRequestDto;
+import ru.yandex.practicum.order.dto.InventoryReserveResponseDto;
 import ru.yandex.practicum.order.dto.OrderItemRequest;
+import ru.yandex.practicum.order.dto.ProductDto;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
@@ -31,14 +38,47 @@ class OrderServiceAcceptanceTest {
     @Autowired
     private ObjectMapper json;
 
+    @MockBean
+    private ProductClient productClient;
+
+    @MockBean
+    private InventoryClient inventoryClient;
+
     @Test
     void shouldCreateOrderStoreProductSnapshotAndFindOrderByIdAndEmail() throws Exception {
+        when(productClient.getProductById(1L)).thenReturn(new ProductDto(
+                1L,
+                "Acceptance Smart Lamp",
+                new BigDecimal("3490.00"),
+                "Acceptance smart lamp description",
+                true
+        ));
+        when(productClient.getProductById(2L)).thenReturn(new ProductDto(
+                2L,
+                "Acceptance Smart Plug",
+                new BigDecimal("1290.00"),
+                "Acceptance smart plug description",
+                true
+        ));
+        when(inventoryClient.reserveStock(new InventoryReserveRequestDto(1L, 2)))
+                .thenReturn(new InventoryReserveResponseDto(
+                        true,
+                        8,
+                        "Stock reserved successfully"
+                ));
+        when(inventoryClient.reserveStock(new InventoryReserveRequestDto(2L, 1)))
+                .thenReturn(new InventoryReserveResponseDto(
+                        true,
+                        9,
+                        "Stock reserved successfully"
+                ));
+
         CreateOrderRequest request = new CreateOrderRequest(
                 "Acceptance Buyer",
                 "acceptance-buyer@example.com",
                 List.of(
-                        new OrderItemRequest(1L, "Acceptance Smart Lamp", 2, new BigDecimal("3490.00")),
-                        new OrderItemRequest(2L, "Acceptance Smart Plug", 1, new BigDecimal("1290.00"))
+                        new OrderItemRequest(1L, null, 2, null),
+                        new OrderItemRequest(2L, null, 1, null)
                 )
         );
 
@@ -53,17 +93,23 @@ class OrderServiceAcceptanceTest {
                 .as("Созданный заказ должен содержать поле id")
                 .isNotNull();
         assertThat(created.get("status"))
-                .as("На текущем этапе новый заказ должен сохраняться в статусе CREATED")
-                .isEqualTo("CREATED");
+                .as("После успешного резервирования заказ должен сохраняться в статусе CONFIRMED")
+                .isEqualTo("CONFIRMED");
         assertThat(asDecimal(created.get("totalPrice")))
-                .as("order-service должен сам рассчитывать totalPrice по снимку товаров из запроса")
+                .as("order-service должен рассчитывать totalPrice по ценам из product-service")
                 .isEqualByComparingTo("8270.00");
         assertThat((List<?>) created.get("items"))
                 .as("Заказ должен хранить позиции заказа")
                 .hasSize(2)
-                .anySatisfy(item -> assertThat((Map<String, Object>) item)
-                        .as("Позиция заказа должна хранить снимок названия и цены товара из запроса")
-                        .containsEntry("productName", "Acceptance Smart Lamp"));
+                .anySatisfy(item -> {
+                    Map<String, Object> orderItem = (Map<String, Object>) item;
+                    assertThat(orderItem)
+                            .as("Позиция заказа должна хранить наименование из product-service")
+                            .containsEntry("productName", "Acceptance Smart Lamp");
+                    assertThat(asDecimal(orderItem.get("price")))
+                            .as("Позиция заказа должна хранить цену из product-service")
+                            .isEqualByComparingTo("3490.00");
+                });
 
         MvcResult byIdResponse = mvc.perform(get("/api/orders/{id}", orderId)).andReturn();
 

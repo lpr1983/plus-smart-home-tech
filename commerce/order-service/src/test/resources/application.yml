@@ -1,5 +1,7 @@
 # Тестовая конфигурация: H2 вместо PostgreSQL.
 spring:
+  application:
+    name: order-service
   cloud:
     config:
       enabled: false
