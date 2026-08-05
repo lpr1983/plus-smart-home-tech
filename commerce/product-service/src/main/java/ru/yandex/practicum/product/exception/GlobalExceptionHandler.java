@@ -19,7 +19,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponse handleNotFound(NotFoundException e) {
-        log.warn("Ресурс не найден: {}", e.getMessage());
+        log.warn("Resource not found: {}", e.getMessage());
         return new ErrorResponse(HttpStatus.NOT_FOUND.value(), e.getMessage());
     }
 
@@ -29,14 +29,14 @@ public class GlobalExceptionHandler {
         Map<String, String> errors = new HashMap<>();
         e.getBindingResult().getFieldErrors()
                 .forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));
-        log.warn("Ошибка валидации: {}", errors);
+        log.warn("Validation failed: {}", errors);
         return new ErrorResponse(HttpStatus.BAD_REQUEST.value(), "Ошибка валидации", errors);
     }
 
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ErrorResponse handleGeneral(Exception e) {
-        log.error("Внутренняя ошибка сервера", e);
+        log.error("Internal server error", e);
         return new ErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Внутренняя ошибка сервера");
     }
 }
