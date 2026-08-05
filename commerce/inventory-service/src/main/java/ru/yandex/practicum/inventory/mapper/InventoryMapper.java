@@ -1,7 +1,6 @@
 package ru.yandex.practicum.inventory.mapper;
 
 import ru.yandex.practicum.inventory.dto.InventoryDto;
-import ru.yandex.practicum.inventory.dto.ReserveResponse;
 import ru.yandex.practicum.inventory.dto.UpdateInventoryRequest;
 import ru.yandex.practicum.inventory.entity.Inventory;
 
@@ -35,11 +34,4 @@ public final class InventoryMapper {
         );
     }
 
-    public static ReserveResponse toReserveResponse(int availableQuantity) {
-        return new ReserveResponse(
-                true,
-                availableQuantity,
-                "Stock reserved successfully"
-        );
-    }
 }

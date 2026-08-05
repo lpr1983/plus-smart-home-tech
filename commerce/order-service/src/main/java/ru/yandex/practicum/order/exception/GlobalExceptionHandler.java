@@ -30,6 +30,13 @@ public class GlobalExceptionHandler {
         return new ErrorResponse(HttpStatus.UNPROCESSABLE_ENTITY.value(), e.getMessage());
     }
 
+    @ExceptionHandler(OrderConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorResponse handleOrderConflict(OrderConflictException e) {
+        log.warn("Order processing conflict: {}", e.getMessage());
+        return new ErrorResponse(HttpStatus.CONFLICT.value(), e.getMessage());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleValidation(MethodArgumentNotValidException e) {

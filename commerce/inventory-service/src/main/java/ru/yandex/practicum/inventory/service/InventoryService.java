@@ -10,7 +10,6 @@ import ru.yandex.practicum.inventory.dto.ReserveResponse;
 import ru.yandex.practicum.inventory.dto.UpdateInventoryRequest;
 import ru.yandex.practicum.inventory.entity.Inventory;
 import ru.yandex.practicum.inventory.exception.ConflictException;
-import ru.yandex.practicum.inventory.exception.InsufficientStockException;
 import ru.yandex.practicum.inventory.exception.NotFoundException;
 import ru.yandex.practicum.inventory.mapper.InventoryMapper;
 import ru.yandex.practicum.inventory.repository.InventoryRepository;
@@ -88,12 +87,16 @@ public class InventoryService {
                     request.quantity(),
                     availableQuantity
             );
-            throw new InsufficientStockException(String.format(
-                    "Insufficient stock for product %d: requested %d, available %d",
-                    request.productId(),
-                    request.quantity(),
-                    availableQuantity
-            ));
+            return new ReserveResponse(
+                    false,
+                    availableQuantity,
+                    String.format(
+                            "Insufficient stock for product %d: requested %d, available %d",
+                            request.productId(),
+                            request.quantity(),
+                            availableQuantity
+                    )
+            );
         }
 
         inventory.setReservedQuantity(inventory.getReservedQuantity() + request.quantity());
@@ -106,7 +109,11 @@ public class InventoryService {
                 request.quantity(),
                 availableAfterReservation
         );
-        return InventoryMapper.toReserveResponse(availableAfterReservation);
+        return new ReserveResponse(
+                true,
+                availableAfterReservation,
+                "Stock reserved successfully"
+        );
     }
 
     private Inventory findByProductId(Long productId) {
