@@ -10,7 +10,6 @@ import ru.yandex.practicum.order.client.InventoryClient;
 import ru.yandex.practicum.order.client.ProductClient;
 import ru.yandex.practicum.order.dto.CreateOrderRequest;
 import ru.yandex.practicum.order.dto.InventoryReserveRequestDto;
-import ru.yandex.practicum.order.dto.InventoryReserveResponseDto;
 import ru.yandex.practicum.order.dto.OrderDto;
 import ru.yandex.practicum.order.dto.OrderItemRequest;
 import ru.yandex.practicum.order.dto.ProductDto;
@@ -168,11 +167,17 @@ public class OrderService {
         }
 
         for (Map.Entry<Long, Integer> entry : quantityByProductId.entrySet()) {
-            InventoryReserveResponseDto response;
             try {
-                response = inventoryClient.reserveStock(
+                inventoryClient.reserveStock(
                         new InventoryReserveRequestDto(entry.getKey(), entry.getValue())
                 );
+            } catch (FeignException.BadRequest e) {
+                log.warn("Inventory rejected reservation: productId={}, quantity={}",
+                        entry.getKey(), entry.getValue());
+                throw new OrderProcessingException(String.format(
+                        "Inventory rejected reservation for product %d",
+                        entry.getKey()
+                ), e);
             } catch (FeignException.NotFound e) {
                 log.warn("Inventory not found: productId={}", entry.getKey());
                 throw new OrderProcessingException(String.format(
@@ -185,17 +190,6 @@ public class OrderService {
                         "Inventory reservation conflict for product %d",
                         entry.getKey()
                 ), e);
-            }
-
-            if (!response.success()) {
-                log.warn(
-                        "Stock reservation rejected: productId={}, requested={}, available={}, message={}",
-                        entry.getKey(),
-                        entry.getValue(),
-                        response.availableQuantity(),
-                        response.message()
-                );
-                throw new OrderProcessingException(response.message());
             }
         }
     }

@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import ru.yandex.practicum.inventory.dto.InventoryDto;
+import ru.yandex.practicum.inventory.dto.ReleaseRequest;
 import ru.yandex.practicum.inventory.dto.ReserveRequest;
 import ru.yandex.practicum.inventory.dto.ReserveResponse;
 import ru.yandex.practicum.inventory.dto.UpdateInventoryRequest;
@@ -47,6 +48,11 @@ public class InventoryController {
     @PostMapping("/reserve")
     public ReserveResponse reserveStock(@Valid @RequestBody ReserveRequest request) {
         return inventoryService.reserveStock(request);
+    }
+
+    @PostMapping("/release")
+    public ReserveResponse releaseStock(@Valid @RequestBody ReleaseRequest request) {
+        return inventoryService.releaseStock(request);
     }
 
     @GetMapping("/{productId}")

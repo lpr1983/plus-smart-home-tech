@@ -5,11 +5,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.practicum.inventory.dto.InventoryDto;
+import ru.yandex.practicum.inventory.dto.ReleaseRequest;
 import ru.yandex.practicum.inventory.dto.ReserveRequest;
 import ru.yandex.practicum.inventory.dto.ReserveResponse;
 import ru.yandex.practicum.inventory.dto.UpdateInventoryRequest;
 import ru.yandex.practicum.inventory.entity.Inventory;
 import ru.yandex.practicum.inventory.exception.ConflictException;
+import ru.yandex.practicum.inventory.exception.InsufficientReservedStockException;
+import ru.yandex.practicum.inventory.exception.InsufficientStockException;
 import ru.yandex.practicum.inventory.exception.NotFoundException;
 import ru.yandex.practicum.inventory.mapper.InventoryMapper;
 import ru.yandex.practicum.inventory.repository.InventoryRepository;
@@ -81,22 +84,21 @@ public class InventoryService {
         int availableQuantity = calculateAvailableQuantity(inventory);
 
         if (availableQuantity < request.quantity()) {
+            int shortage = request.quantity() - availableQuantity;
             log.warn(
-                    "Insufficient stock: productId={}, requested={}, available={}",
+                    "Insufficient stock: productId={}, requested={}, available={}, shortage={}",
                     request.productId(),
                     request.quantity(),
-                    availableQuantity
-            );
-            return new ReserveResponse(
-                    false,
                     availableQuantity,
-                    String.format(
-                            "Insufficient stock for product %d: requested %d, available %d",
-                            request.productId(),
-                            request.quantity(),
-                            availableQuantity
-                    )
+                    shortage
             );
+            throw new InsufficientStockException(String.format(
+                    "Insufficient stock for product %d: requested %d, available %d, shortage %d",
+                    request.productId(),
+                    request.quantity(),
+                    availableQuantity,
+                    shortage
+            ));
         }
 
         inventory.setReservedQuantity(inventory.getReservedQuantity() + request.quantity());
@@ -113,6 +115,49 @@ public class InventoryService {
                 true,
                 availableAfterReservation,
                 "Stock reserved successfully"
+        );
+    }
+
+    @Transactional
+    public ReserveResponse releaseStock(ReleaseRequest request) {
+        log.info("Releasing stock reservation: productId={}, quantity={}",
+                request.productId(), request.quantity());
+
+        Inventory inventory = findByProductId(request.productId());
+        int reservedQuantity = inventory.getReservedQuantity();
+
+        if (reservedQuantity < request.quantity()) {
+            int shortage = request.quantity() - reservedQuantity;
+            log.warn(
+                    "Insufficient reserved stock: productId={}, requested={}, reserved={}, shortage={}",
+                    request.productId(),
+                    request.quantity(),
+                    reservedQuantity,
+                    shortage
+            );
+            throw new InsufficientReservedStockException(String.format(
+                    "Insufficient reserved stock for product %d: requested release %d, reserved %d, shortage %d",
+                    request.productId(),
+                    request.quantity(),
+                    reservedQuantity,
+                    shortage
+            ));
+        }
+
+        inventory.setReservedQuantity(reservedQuantity - request.quantity());
+        Inventory savedInventory = inventoryRepository.saveAndFlush(inventory);
+        int availableAfterRelease = calculateAvailableQuantity(savedInventory);
+
+        log.info(
+                "Stock reservation released: productId={}, released={}, available={}",
+                savedInventory.getProductId(),
+                request.quantity(),
+                availableAfterRelease
+        );
+        return new ReserveResponse(
+                true,
+                availableAfterRelease,
+                "Stock reservation released successfully"
         );
     }
 
