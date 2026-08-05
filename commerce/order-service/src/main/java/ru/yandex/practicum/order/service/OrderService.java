@@ -9,12 +9,14 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.practicum.order.client.InventoryClient;
 import ru.yandex.practicum.order.client.ProductClient;
 import ru.yandex.practicum.order.dto.CreateOrderRequest;
+import ru.yandex.practicum.order.dto.InventoryReleaseRequestDto;
 import ru.yandex.practicum.order.dto.InventoryReserveRequestDto;
 import ru.yandex.practicum.order.dto.OrderDto;
 import ru.yandex.practicum.order.dto.OrderItemRequest;
 import ru.yandex.practicum.order.dto.ProductDto;
 import ru.yandex.practicum.order.entity.Order;
 import ru.yandex.practicum.order.entity.OrderItem;
+import ru.yandex.practicum.order.entity.OrderStatus;
 import ru.yandex.practicum.order.exception.NotFoundException;
 import ru.yandex.practicum.order.exception.OrderConflictException;
 import ru.yandex.practicum.order.exception.OrderProcessingException;
@@ -24,6 +26,7 @@ import ru.yandex.practicum.order.repository.OrderRepository;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -61,6 +64,7 @@ public class OrderService {
         Order order = new Order();
         order.setCustomerName(request.customerName());
         order.setCustomerEmail(request.customerEmail());
+        order.setStatus(OrderStatus.CONFIRMED);
         order.setTotalPrice(totalPrice);
 
         for (OrderItem item : items) {
@@ -157,7 +161,7 @@ public class OrderService {
     }
 
     private void reserveStock(List<OrderItem> items) {
-        Map<Long, Integer> quantityByProductId = new HashMap<>();
+        Map<Long, Integer> quantityByProductId = new LinkedHashMap<>();
 
         for (OrderItem item : items) {
             Long productId = item.getProductId();
@@ -166,30 +170,65 @@ public class OrderService {
             quantityByProductId.put(productId, totalQuantity);
         }
 
-        for (Map.Entry<Long, Integer> entry : quantityByProductId.entrySet()) {
+        Map<Long, Integer> successfulReservations = new LinkedHashMap<>();
+
+        try {
+            for (Map.Entry<Long, Integer> entry : quantityByProductId.entrySet()) {
+                reserveProductStock(entry.getKey(), entry.getValue());
+                successfulReservations.put(entry.getKey(), entry.getValue());
+            }
+        } catch (RuntimeException e) {
+            compensateReservations(successfulReservations, e);
+            throw e;
+        }
+    }
+
+    private void reserveProductStock(Long productId, Integer quantity) {
+        try {
+            inventoryClient.reserveStock(new InventoryReserveRequestDto(productId, quantity));
+        } catch (FeignException.BadRequest e) {
+            log.warn("Inventory rejected reservation: productId={}, quantity={}", productId, quantity);
+            throw new OrderProcessingException(String.format(
+                    "Inventory rejected reservation for product %d",
+                    productId
+            ), e);
+        } catch (FeignException.NotFound e) {
+            log.warn("Inventory not found: productId={}", productId);
+            throw new OrderProcessingException(String.format(
+                    "Inventory for product %d was not found",
+                    productId
+            ), e);
+        } catch (FeignException.Conflict e) {
+            log.warn("Inventory reservation conflict: productId={}", productId);
+            throw new OrderConflictException(String.format(
+                    "Inventory reservation conflict for product %d",
+                    productId
+            ), e);
+        }
+    }
+
+    private void compensateReservations(
+            Map<Long, Integer> successfulReservations,
+            RuntimeException originalException
+    ) {
+        for (Map.Entry<Long, Integer> entry : successfulReservations.entrySet()) {
             try {
-                inventoryClient.reserveStock(
-                        new InventoryReserveRequestDto(entry.getKey(), entry.getValue())
+                inventoryClient.releaseStock(
+                        new InventoryReleaseRequestDto(entry.getKey(), entry.getValue())
                 );
-            } catch (FeignException.BadRequest e) {
-                log.warn("Inventory rejected reservation: productId={}, quantity={}",
-                        entry.getKey(), entry.getValue());
-                throw new OrderProcessingException(String.format(
-                        "Inventory rejected reservation for product %d",
-                        entry.getKey()
-                ), e);
-            } catch (FeignException.NotFound e) {
-                log.warn("Inventory not found: productId={}", entry.getKey());
-                throw new OrderProcessingException(String.format(
-                        "Inventory for product %d was not found",
-                        entry.getKey()
-                ), e);
-            } catch (FeignException.Conflict e) {
-                log.warn("Inventory reservation conflict: productId={}", entry.getKey());
-                throw new OrderConflictException(String.format(
-                        "Inventory reservation conflict for product %d",
-                        entry.getKey()
-                ), e);
+                log.info(
+                        "Inventory reservation compensated: productId={}, quantity={}",
+                        entry.getKey(),
+                        entry.getValue()
+                );
+            } catch (RuntimeException compensationException) {
+                log.error(
+                        "Inventory reservation compensation failed: productId={}, quantity={}",
+                        entry.getKey(),
+                        entry.getValue(),
+                        compensationException
+                );
+                originalException.addSuppressed(compensationException);
             }
         }
     }
