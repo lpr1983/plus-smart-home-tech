@@ -1,7 +1,5 @@
 package ru.yandex.practicum.order.service;
 
-import feign.FeignException;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -18,7 +16,6 @@ import ru.yandex.practicum.order.entity.Order;
 import ru.yandex.practicum.order.entity.OrderItem;
 import ru.yandex.practicum.order.entity.OrderStatus;
 import ru.yandex.practicum.order.exception.NotFoundException;
-import ru.yandex.practicum.order.exception.OrderConflictException;
 import ru.yandex.practicum.order.exception.OrderProcessingException;
 import ru.yandex.practicum.order.mapper.OrderMapper;
 import ru.yandex.practicum.order.repository.OrderRepository;
@@ -122,16 +119,7 @@ public class OrderService {
             Long productId = request.productId();
 
             if (!productCache.containsKey(productId)) {
-                ProductDto product;
-                try {
-                    product = productClient.getProductById(productId);
-                } catch (FeignException.NotFound e) {
-                    log.warn("Product not found: productId={}", productId);
-                    throw new OrderProcessingException(String.format(
-                            "Product with id %d was not found",
-                            productId
-                    ), e);
-                }
+                ProductDto product = productClient.getProductById(productId);
 
                 if (!Boolean.TRUE.equals(product.active())) {
                     log.warn("Product is inactive: productId={}", productId);
@@ -174,36 +162,17 @@ public class OrderService {
 
         try {
             for (Map.Entry<Long, Integer> entry : quantityByProductId.entrySet()) {
-                reserveProductStock(entry.getKey(), entry.getValue());
-                successfulReservations.put(entry.getKey(), entry.getValue());
+                Long productId = entry.getKey();
+                Integer quantity = entry.getValue();
+
+                inventoryClient.reserveStock(
+                        new InventoryReserveRequestDto(productId, quantity)
+                );
+                successfulReservations.put(productId, quantity);
             }
         } catch (RuntimeException e) {
             compensateReservations(successfulReservations, e);
             throw e;
-        }
-    }
-
-    private void reserveProductStock(Long productId, Integer quantity) {
-        try {
-            inventoryClient.reserveStock(new InventoryReserveRequestDto(productId, quantity));
-        } catch (FeignException.BadRequest e) {
-            log.warn("Inventory rejected reservation: productId={}, quantity={}", productId, quantity);
-            throw new OrderProcessingException(String.format(
-                    "Inventory rejected reservation for product %d",
-                    productId
-            ), e);
-        } catch (FeignException.NotFound e) {
-            log.warn("Inventory not found: productId={}", productId);
-            throw new OrderProcessingException(String.format(
-                    "Inventory for product %d was not found",
-                    productId
-            ), e);
-        } catch (FeignException.Conflict e) {
-            log.warn("Inventory reservation conflict: productId={}", productId);
-            throw new OrderConflictException(String.format(
-                    "Inventory reservation conflict for product %d",
-                    productId
-            ), e);
         }
     }
 
