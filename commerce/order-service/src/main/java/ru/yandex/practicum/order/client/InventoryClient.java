@@ -4,6 +4,7 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import ru.yandex.practicum.order.dto.InventoryReleaseRequestDto;
+import ru.yandex.practicum.order.dto.InventoryReleaseResponseDto;
 import ru.yandex.practicum.order.dto.InventoryReserveRequestDto;
 import ru.yandex.practicum.order.dto.InventoryReserveResponseDto;
 
@@ -14,5 +15,5 @@ public interface InventoryClient {
     InventoryReserveResponseDto reserveStock(@RequestBody InventoryReserveRequestDto request);
 
     @PostMapping("/api/inventory/release")
-    InventoryReserveResponseDto releaseStock(@RequestBody InventoryReleaseRequestDto request);
+    InventoryReleaseResponseDto releaseStock(@RequestBody InventoryReleaseRequestDto request);
 }

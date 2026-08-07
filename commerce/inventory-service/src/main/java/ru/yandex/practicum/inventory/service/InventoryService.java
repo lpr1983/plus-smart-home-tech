@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.practicum.inventory.dto.InventoryDto;
 import ru.yandex.practicum.inventory.dto.ReleaseRequest;
+import ru.yandex.practicum.inventory.dto.ReleaseResponse;
 import ru.yandex.practicum.inventory.dto.ReserveRequest;
 import ru.yandex.practicum.inventory.dto.ReserveResponse;
 import ru.yandex.practicum.inventory.dto.UpdateInventoryRequest;
@@ -119,7 +120,7 @@ public class InventoryService {
     }
 
     @Transactional
-    public ReserveResponse releaseStock(ReleaseRequest request) {
+    public ReleaseResponse releaseStock(ReleaseRequest request) {
         log.info("Releasing stock reservation: productId={}, quantity={}",
                 request.productId(), request.quantity());
 
@@ -154,7 +155,7 @@ public class InventoryService {
                 request.quantity(),
                 availableAfterRelease
         );
-        return new ReserveResponse(
+        return new ReleaseResponse(
                 true,
                 availableAfterRelease,
                 "Stock reservation released successfully"
