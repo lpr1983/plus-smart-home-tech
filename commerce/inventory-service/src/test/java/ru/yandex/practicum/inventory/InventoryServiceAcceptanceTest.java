@@ -97,8 +97,8 @@ class InventoryServiceAcceptanceTest {
         MvcResult response = postJson("/api/inventory/reserve", new ReserveRequest(productId, 3));
 
         assertThat(status(response))
-                .as("POST /api/inventory/reserve должен возвращать HTTP 400 BadRequest, если товара недостаточно")
-                .isEqualTo(400);
+                .as("POST /api/inventory/reserve должен возвращать HTTP 409 Conflict, если товара недостаточно")
+                .isEqualTo(409);
         assertThat(readMap(response))
                 .as("Ответ ошибки должен содержать понятное сообщение")
                 .containsKey("message");

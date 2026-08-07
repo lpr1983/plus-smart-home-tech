@@ -32,10 +32,10 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(InsufficientStockException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorResponse handleInsufficientStock(InsufficientStockException e) {
         log.warn("Insufficient stock: {}", e.getMessage());
-        return new ErrorResponse(HttpStatus.BAD_REQUEST.value(), e.getMessage());
+        return new ErrorResponse(HttpStatus.CONFLICT.value(), e.getMessage());
     }
 
     @ExceptionHandler(InsufficientReservedStockException.class)
