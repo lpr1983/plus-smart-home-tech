@@ -270,12 +270,12 @@ class OrderServiceAcceptanceTest {
     }
 
     private Map<String, Object> readMap(MvcResult result) throws Exception {
-        return json.readValue(result.getResponse().getContentAsString(), new TypeReference<>() {
+        return json.readValue(result.getResponse().getContentAsByteArray(), new TypeReference<>() {
         });
     }
 
     private List<Map<String, Object>> readList(MvcResult result) throws Exception {
-        return json.readValue(result.getResponse().getContentAsString(), new TypeReference<>() {
+        return json.readValue(result.getResponse().getContentAsByteArray(), new TypeReference<>() {
         });
     }
 
