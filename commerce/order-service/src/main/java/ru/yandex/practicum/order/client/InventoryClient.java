@@ -8,7 +8,10 @@ import ru.yandex.practicum.order.dto.InventoryReleaseResponseDto;
 import ru.yandex.practicum.order.dto.InventoryReserveRequestDto;
 import ru.yandex.practicum.order.dto.InventoryReserveResponseDto;
 
-@FeignClient(name = "inventory-service")
+@FeignClient(
+        name = "inventory-service",
+        fallbackFactory = InventoryClientFallbackFactory.class
+)
 public interface InventoryClient {
 
     @PostMapping("/api/inventory/reserve")
