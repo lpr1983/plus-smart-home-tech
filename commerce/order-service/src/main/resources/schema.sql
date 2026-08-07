@@ -16,5 +16,5 @@ CREATE TABLE IF NOT EXISTS order_items (
     quantity INTEGER NOT NULL,
     price NUMERIC(19, 2) NOT NULL,
     CONSTRAINT chk_order_items_quantity_positive CHECK (quantity >= 1),
-    CONSTRAINT chk_order_items_price_positive CHECK (price >= 0.01)
+    CONSTRAINT chk_order_items_price_non_negative CHECK (price >= 0)
 );

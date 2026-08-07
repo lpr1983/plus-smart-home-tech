@@ -17,6 +17,7 @@ import ru.yandex.practicum.order.entity.OrderItem;
 import ru.yandex.practicum.order.entity.OrderStatus;
 import ru.yandex.practicum.order.exception.NotFoundException;
 import ru.yandex.practicum.order.exception.OrderProcessingException;
+import ru.yandex.practicum.order.exception.ServiceDegradationException;
 import ru.yandex.practicum.order.mapper.OrderMapper;
 import ru.yandex.practicum.order.repository.OrderRepository;
 
@@ -53,21 +54,59 @@ public class OrderService {
                 request.items().size()
         );
 
-        List<OrderItem> items = enrichOrderItems(request.items());
-        BigDecimal totalPrice = calculateTotalPrice(items);
-
-        reserveStock(items);
-
         Order order = new Order();
         order.setCustomerName(request.customerName());
         order.setCustomerEmail(request.customerEmail());
-        order.setStatus(OrderStatus.CONFIRMED);
+
+        List<OrderItem> items;
+        try {
+            items = enrichOrderItems(request.items());
+        } catch (ServiceDegradationException e) {
+            List<OrderItem> pendingItems = createPendingOrderItems(request.items());
+            order.setTotalPrice(BigDecimal.ZERO);
+
+            for (OrderItem item : pendingItems) {
+                order.addItem(item);
+            }
+
+            Order savedPendingOrder = savePendingOrder(order);
+            log.warn(
+                    "Order saved pending confirmation after product service degradation: id={}, customerEmail={}",
+                    savedPendingOrder.getId(),
+                    savedPendingOrder.getCustomerEmail()
+            );
+
+            throw new OrderProcessingException(String.format(
+                    "Order %d is pending confirmation because product information could not be retrieved",
+                    savedPendingOrder.getId()
+            ), e);
+        }
+
+        BigDecimal totalPrice = calculateTotalPrice(items);
         order.setTotalPrice(totalPrice);
 
         for (OrderItem item : items) {
             order.addItem(item);
         }
 
+        try {
+            reserveStock(items);
+        } catch (ServiceDegradationException e) {
+            Order savedPendingOrder = savePendingOrder(order);
+
+            log.warn(
+                    "Order saved pending confirmation after inventory service degradation: id={}, customerEmail={}",
+                    savedPendingOrder.getId(),
+                    savedPendingOrder.getCustomerEmail()
+            );
+
+            throw new OrderProcessingException(String.format(
+                    "Order %d is pending confirmation because inventory reservation could not be confirmed",
+                    savedPendingOrder.getId()
+            ), e);
+        }
+
+        order.setStatus(OrderStatus.CONFIRMED);
         Order savedOrder = orderRepository.saveAndFlush(order);
 
         log.info(
@@ -111,6 +150,11 @@ public class OrderService {
         return orders;
     }
 
+    private Order savePendingOrder(Order order) {
+        order.setStatus(OrderStatus.PENDING_CONFIRMATION);
+        return orderRepository.saveAndFlush(order);
+    }
+
     private List<OrderItem> enrichOrderItems(List<OrderItemRequest> itemRequests) {
         List<OrderItem> items = new ArrayList<>(itemRequests.size());
         Map<Long, ProductDto> productCache = new HashMap<>();
@@ -146,6 +190,24 @@ public class OrderService {
         item.setQuantity(quantity);
         item.setPrice(product.price());
         return item;
+    }
+
+    private static List<OrderItem> createPendingOrderItems(List<OrderItemRequest> itemRequests) {
+        List<OrderItem> items = new ArrayList<>(itemRequests.size());
+
+        for (OrderItemRequest request : itemRequests) {
+            OrderItem item = new OrderItem();
+            item.setProductId(request.productId());
+            item.setProductName(String.format(
+                    "Товар #%d (ожидает проверки)",
+                    request.productId()
+            ));
+            item.setQuantity(request.quantity());
+            item.setPrice(BigDecimal.ZERO);
+            items.add(item);
+        }
+
+        return items;
     }
 
     private void reserveStock(List<OrderItem> items) {

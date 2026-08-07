@@ -17,12 +17,14 @@ import ru.yandex.practicum.order.dto.InventoryReserveRequestDto;
 import ru.yandex.practicum.order.dto.InventoryReserveResponseDto;
 import ru.yandex.practicum.order.dto.OrderItemRequest;
 import ru.yandex.practicum.order.dto.ProductDto;
+import ru.yandex.practicum.order.exception.ServiceDegradationException;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -131,6 +133,111 @@ class OrderServiceAcceptanceTest {
                 .as("Поиск заказов по email должен вернуть созданный заказ")
                 .anySatisfy(item -> assertThat(item)
                         .containsEntry("customerEmail", "acceptance-buyer@example.com"));
+    }
+
+    @Test
+    void shouldSavePendingOrderWhenProductServiceIsDegraded() throws Exception {
+        long productId = 3L;
+        String customerEmail = "pending-buyer@example.com";
+        when(productClient.getProductById(productId)).thenThrow(
+                new ServiceDegradationException(
+                        "product-service",
+                        new RuntimeException("Product service is unavailable")
+                )
+        );
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "Pending Buyer",
+                customerEmail,
+                List.of(new OrderItemRequest(productId, null, 2, null))
+        );
+
+        MvcResult createResponse = postJson("/api/orders", request);
+
+        assertThat(status(createResponse))
+                .as("A product service degradation must return HTTP 422")
+                .isEqualTo(422);
+        verifyNoInteractions(inventoryClient);
+
+        MvcResult byEmailResponse = mvc.perform(get("/api/orders/by-email")
+                .param("email", customerEmail))
+                .andReturn();
+
+        assertThat(status(byEmailResponse)).isEqualTo(200);
+        assertThat(readList(byEmailResponse))
+                .anySatisfy(order -> {
+                    assertThat(order)
+                            .containsEntry("status", "PENDING_CONFIRMATION");
+                    assertThat(asDecimal(order.get("totalPrice")))
+                            .isEqualByComparingTo(BigDecimal.ZERO);
+
+                    List<Map<String, Object>> items = (List<Map<String, Object>>) order.get("items");
+                    assertThat(items)
+                            .singleElement()
+                            .satisfies(item -> {
+                                assertThat(item)
+                                        .containsEntry("productId", 3)
+                                        .containsEntry("productName", "Товар #3 (ожидает проверки)")
+                                        .containsEntry("quantity", 2);
+                                assertThat(asDecimal(item.get("price")))
+                                        .isEqualByComparingTo(BigDecimal.ZERO);
+                            });
+                });
+    }
+
+    @Test
+    void shouldSavePendingOrderWhenInventoryServiceIsDegraded() throws Exception {
+        long productId = 4L;
+        String customerEmail = "inventory-pending-buyer@example.com";
+        when(productClient.getProductById(productId)).thenReturn(new ProductDto(
+                productId,
+                "Pending Smart Sensor",
+                new BigDecimal("499.00"),
+                "Pending smart sensor description",
+                true
+        ));
+        when(inventoryClient.reserveStock(new InventoryReserveRequestDto(productId, 2)))
+                .thenThrow(new ServiceDegradationException(
+                        "inventory-service",
+                        new RuntimeException("Inventory service is unavailable")
+                ));
+
+        CreateOrderRequest request = new CreateOrderRequest(
+                "Inventory Pending Buyer",
+                customerEmail,
+                List.of(new OrderItemRequest(productId, null, 2, null))
+        );
+
+        MvcResult createResponse = postJson("/api/orders", request);
+
+        assertThat(status(createResponse))
+                .as("An inventory service degradation must return HTTP 422")
+                .isEqualTo(422);
+
+        MvcResult byEmailResponse = mvc.perform(get("/api/orders/by-email")
+                .param("email", customerEmail))
+                .andReturn();
+
+        assertThat(status(byEmailResponse)).isEqualTo(200);
+        assertThat(readList(byEmailResponse))
+                .anySatisfy(order -> {
+                    assertThat(order)
+                            .containsEntry("status", "PENDING_CONFIRMATION");
+                    assertThat(asDecimal(order.get("totalPrice")))
+                            .isEqualByComparingTo("998.00");
+
+                    List<Map<String, Object>> items = (List<Map<String, Object>>) order.get("items");
+                    assertThat(items)
+                            .singleElement()
+                            .satisfies(item -> {
+                                assertThat(item)
+                                        .containsEntry("productId", 4)
+                                        .containsEntry("productName", "Pending Smart Sensor")
+                                        .containsEntry("quantity", 2);
+                                assertThat(asDecimal(item.get("price")))
+                                        .isEqualByComparingTo("499.00");
+                            });
+                });
     }
 
     @Test
