@@ -61,7 +61,7 @@ public class OrderService {
         List<OrderItem> items;
         try {
             items = enrichOrderItems(request.items());
-        } catch (ServiceDegradationException e) {
+        } catch (ServiceDegradationException ignored) {
             List<OrderItem> pendingItems = createPendingOrderItems(request.items());
             order.setTotalPrice(BigDecimal.ZERO);
 
@@ -76,10 +76,7 @@ public class OrderService {
                     savedPendingOrder.getCustomerEmail()
             );
 
-            throw new OrderProcessingException(String.format(
-                    "Order %d is pending confirmation because product information could not be retrieved",
-                    savedPendingOrder.getId()
-            ), e);
+            return OrderMapper.toDto(savedPendingOrder);
         }
 
         BigDecimal totalPrice = calculateTotalPrice(items);
@@ -91,7 +88,7 @@ public class OrderService {
 
         try {
             reserveStock(items);
-        } catch (ServiceDegradationException e) {
+        } catch (ServiceDegradationException ignored) {
             Order savedPendingOrder = savePendingOrder(order);
 
             log.warn(
@@ -100,10 +97,7 @@ public class OrderService {
                     savedPendingOrder.getCustomerEmail()
             );
 
-            throw new OrderProcessingException(String.format(
-                    "Order %d is pending confirmation because inventory reservation could not be confirmed",
-                    savedPendingOrder.getId()
-            ), e);
+            return OrderMapper.toDto(savedPendingOrder);
         }
 
         order.setStatus(OrderStatus.CONFIRMED);

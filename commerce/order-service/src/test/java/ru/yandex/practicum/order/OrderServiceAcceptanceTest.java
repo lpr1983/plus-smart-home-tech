@@ -155,8 +155,10 @@ class OrderServiceAcceptanceTest {
         MvcResult createResponse = postJson("/api/orders", request);
 
         assertThat(status(createResponse))
-                .as("A product service degradation must return HTTP 422")
-                .isEqualTo(422);
+                .as("A product service degradation must return HTTP 201")
+                .isEqualTo(201);
+        assertThat(readMap(createResponse))
+                .containsEntry("status", "PENDING_CONFIRMATION");
         verifyNoInteractions(inventoryClient);
 
         MvcResult byEmailResponse = mvc.perform(get("/api/orders/by-email")
@@ -211,8 +213,10 @@ class OrderServiceAcceptanceTest {
         MvcResult createResponse = postJson("/api/orders", request);
 
         assertThat(status(createResponse))
-                .as("An inventory service degradation must return HTTP 422")
-                .isEqualTo(422);
+                .as("An inventory service degradation must return HTTP 201")
+                .isEqualTo(201);
+        assertThat(readMap(createResponse))
+                .containsEntry("status", "PENDING_CONFIRMATION");
 
         MvcResult byEmailResponse = mvc.perform(get("/api/orders/by-email")
                 .param("email", customerEmail))
