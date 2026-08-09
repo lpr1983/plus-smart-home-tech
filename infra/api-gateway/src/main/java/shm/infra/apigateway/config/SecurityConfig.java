@@ -44,17 +44,49 @@ public class SecurityConfig {
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
                 .httpBasic(Customizer.withDefaults())
-                .authorizeExchange(exchanges -> exchanges
-                        .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                        .pathMatchers(
-                                HttpMethod.GET,
-                                "/api/products/**",
-                                "/api/categories/**",
-                                "/api/inventory/**"
-                        ).permitAll()
-                        .anyExchange().denyAll()
-                )
+                .authorizeExchange(exchanges -> {
+                    configureCommonRoutes(exchanges);
+                    configureProductRoutes(exchanges);
+                    configureCategoryRoutes(exchanges);
+                    configureInventoryRoutes(exchanges);
+                    configureOrderRoutes(exchanges);
+                    exchanges.anyExchange().denyAll();
+                })
                 .build();
+    }
+
+    private void configureCommonRoutes(ServerHttpSecurity.AuthorizeExchangeSpec exchanges) {
+        exchanges.pathMatchers(HttpMethod.OPTIONS, "/**").permitAll();
+    }
+
+    private void configureProductRoutes(ServerHttpSecurity.AuthorizeExchangeSpec exchanges) {
+        exchanges.pathMatchers(HttpMethod.GET, "/api/products/**").permitAll();
+        exchanges.pathMatchers(HttpMethod.POST, "/api/products/**").hasRole("ADMIN");
+        exchanges.pathMatchers(HttpMethod.PUT, "/api/products/**").hasRole("ADMIN");
+        exchanges.pathMatchers(HttpMethod.PATCH, "/api/products/**").hasRole("ADMIN");
+        exchanges.pathMatchers(HttpMethod.DELETE, "/api/products/**").hasRole("ADMIN");
+    }
+
+    private void configureCategoryRoutes(ServerHttpSecurity.AuthorizeExchangeSpec exchanges) {
+        exchanges.pathMatchers(HttpMethod.GET, "/api/categories/**").permitAll();
+        exchanges.pathMatchers(HttpMethod.POST, "/api/categories/**").hasRole("ADMIN");
+        exchanges.pathMatchers(HttpMethod.PUT, "/api/categories/**").hasRole("ADMIN");
+        exchanges.pathMatchers(HttpMethod.PATCH, "/api/categories/**").hasRole("ADMIN");
+        exchanges.pathMatchers(HttpMethod.DELETE, "/api/categories/**").hasRole("ADMIN");
+    }
+
+    private void configureInventoryRoutes(ServerHttpSecurity.AuthorizeExchangeSpec exchanges) {
+        exchanges.pathMatchers(HttpMethod.GET, "/api/inventory/**").permitAll();
+        exchanges.pathMatchers(HttpMethod.POST, "/api/inventory/**").hasRole("ADMIN");
+        exchanges.pathMatchers(HttpMethod.PUT, "/api/inventory/**").hasRole("ADMIN");
+        exchanges.pathMatchers(HttpMethod.PATCH, "/api/inventory/**").hasRole("ADMIN");
+        exchanges.pathMatchers(HttpMethod.DELETE, "/api/inventory/**").hasRole("ADMIN");
+    }
+
+    private void configureOrderRoutes(ServerHttpSecurity.AuthorizeExchangeSpec exchanges) {
+        exchanges.pathMatchers(HttpMethod.GET, "/api/orders").hasRole("ADMIN");
+        exchanges.pathMatchers(HttpMethod.GET, "/api/orders/by-email").hasRole("USER");
+        exchanges.pathMatchers(HttpMethod.GET, "/api/orders/{id}").hasRole("USER");
+        exchanges.pathMatchers(HttpMethod.POST, "/api/orders/**").hasRole("USER");
     }
 }
