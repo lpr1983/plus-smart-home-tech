@@ -33,7 +33,7 @@ public class SecurityConfig {
                 User.builder()
                         .username("anna")
                         .password(passwordEncoder.encode("anna"))
-                        .roles("ADMIN")
+                        .roles("USER", "ADMIN")
                         .build()
         );
     }
